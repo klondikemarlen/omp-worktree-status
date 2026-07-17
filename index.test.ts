@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, watch, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, readFile, rm, watch, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, test } from "bun:test"
@@ -10,6 +10,7 @@ import worktreeStatusExtension, {
   type ExtensionHandler,
   formatStatus,
   getEditorCommand,
+  parseEditorCommand,
   inspectWorktree,
   toolDirectory,
 } from "./index.ts"
@@ -30,6 +31,16 @@ describe("getEditorCommand", () => {
     expect(getEditorCommand({ EDITOR: "vim" })).toBe("vim")
     expect(getEditorCommand({}, "win32")).toBe("notepad")
     expect(getEditorCommand({})).toBeUndefined()
+  })
+})
+
+describe("parseEditorCommand", () => {
+  test("keeps quoted executable paths and ordinary arguments intact", () => {
+    expect(parseEditorCommand('"C:\\Program Files\\Code.exe" --reuse-window')).toEqual([
+      "C:\\Program Files\\Code.exe",
+      "--reuse-window",
+    ])
+    expect(parseEditorCommand("code --reuse-window")).toEqual(["code", "--reuse-window"])
   })
 })
 
@@ -107,18 +118,20 @@ describe("worktreeStatusExtension", () => {
 })
 
 describe("open-in-editor", () => {
-  test("opens the active worktree with the configured editor", async () => {
+  test("opens the active worktree with a quoted editor path and argument", async () => {
     const temporaryDirectory = await mkdtemp(join(tmpdir(), "omp-worktree-status-"))
-    const editor = join(temporaryDirectory, "editor")
+    const editorDirectory = join(temporaryDirectory, "editor with spaces")
+    const editor = join(editorDirectory, "editor")
     const openedPath = join(temporaryDirectory, "opened-path")
     const previousVisual = process.env.VISUAL
     const previousEditor = process.env.EDITOR
     const previousOutput = process.env.OMP_EDITOR_OUTPUT
     let command: CommandHandler | undefined
 
-    await writeFile(editor, '#!/bin/sh\nprintf "%s" "$1" > "$OMP_EDITOR_OUTPUT"\n')
+    await mkdir(editorDirectory)
+    await writeFile(editor, '#!/bin/sh\nprintf "%s" "$2" > "$OMP_EDITOR_OUTPUT"\n')
     await chmod(editor, 0o755)
-    process.env.VISUAL = editor
+    process.env.VISUAL = `"${editor}" --reuse-window`
     delete process.env.EDITOR
     process.env.OMP_EDITOR_OUTPUT = openedPath
 

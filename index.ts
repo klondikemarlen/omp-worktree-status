@@ -77,12 +77,50 @@ export function getEditorCommand(
   return environment.VISUAL?.trim() || environment.EDITOR?.trim() || (platform === "win32" ? "notepad" : undefined)
 }
 
+export function parseEditorCommand(command: string): string[] {
+  const args: string[] = []
+  let current = ""
+  let quote: "'" | '"' | undefined
+
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index]
+    const next = command[index + 1]
+
+    if (quote) {
+      if (character === quote) {
+        quote = undefined
+      } else if (character === "\\" && next && (next === quote || next === "\\")) {
+        current += next
+        index += 1
+      } else {
+        current += character
+      }
+    } else if (character === "'" || character === '"') {
+      quote = character
+    } else if (/\s/.test(character)) {
+      if (current) {
+        args.push(current)
+        current = ""
+      }
+    } else if (character === "\\" && next && (/\s/.test(next) || next === "'" || next === '"')) {
+      current += next
+      index += 1
+    } else {
+      current += character
+    }
+  }
+
+  if (quote) throw new Error("Editor command has an unclosed quote.")
+  if (current) args.push(current)
+  return args
+}
+
 export function openInEditor(
   editorCommand: string,
   directory: string,
   onError?: (error: Error) => void,
 ): void {
-  const [editor, ...args] = editorCommand.trim().split(/\s+/)
+  const [editor, ...args] = parseEditorCommand(editorCommand)
   if (!editor) throw new Error("Editor command is empty.")
   const child = spawn(editor, [...args, directory], { detached: true, stdio: "ignore", windowsHide: true })
   if (onError) child.once("error", onError)
