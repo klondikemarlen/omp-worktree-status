@@ -1,0 +1,27 @@
+{
+  "name": "omp-worktree-status",
+  "version": "0.1.0",
+  "description": "OMP status entry for the active tool directory, Git worktree, and branch.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "bun test",
+    "release:check": "bun test",
+    "reinstall": "omp plugin install github:klondikemarlen/omp-worktree-status"
+  },
+  "keywords": ["omp-plugin", "git", "worktree", "statusline"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/klondikemarlen/omp-worktree-status.git"
+  },
+  "homepage": "https://github.com/klondikemarlen/omp-worktree-status#readme",
+  "bugs": {
+    "url": "https://github.com/klondikemarlen/omp-worktree-status/issues"
+  },
+  "omp": {
+    "extensions": ["./index.ts"]
+  },
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

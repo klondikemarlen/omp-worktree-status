@@ -1,0 +1,19 @@
+{
+  "name": "omp-worktree-status",
+  "owner": {
+    "name": "klondikemarlen"
+  },
+  "metadata": {
+    "description": "Active Bash directory, Git worktree, and branch status for OMP."
+  },
+  "plugins": [
+    {
+      "name": "omp-worktree-status",
+      "description": "Show the active tool directory, Git worktree, and branch in OMP hook status.",
+      "source": "./",
+      "category": "productivity",
+      "tags": ["git", "statusline", "worktree", "omp"],
+      "repository": "https://github.com/klondikemarlen/omp-worktree-status"
+    }
+  ]
+}
