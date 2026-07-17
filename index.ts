@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process"
+import { execFileSync, spawn } from "node:child_process"
 import { homedir } from "node:os"
 import { isAbsolute, relative, resolve } from "node:path"
 
@@ -13,6 +13,7 @@ export type ExtensionContext = {
     getHeader(): { parentSession?: unknown } | null
   }
   ui: {
+    notify(message: string, type?: "info" | "warning" | "error"): void
     setStatus(key: string, text: string | undefined): void
     theme: { fg(color: string, text: string): string }
   }
@@ -20,9 +21,11 @@ export type ExtensionContext = {
 
 export type ExtensionEvent = "session_start" | "session_switch" | "session_shutdown" | "tool_call"
 export type ExtensionHandler = (event: { toolName?: string; input?: ToolInput }, ctx: ExtensionContext) => void
+export type CommandHandler = (args: string, ctx: ExtensionContext) => Promise<void>
 
 export type ExtensionApi = {
   on(event: ExtensionEvent, handler: ExtensionHandler): void
+  registerCommand(name: string, options: { description?: string; handler: CommandHandler }): void
 }
 
 export type WorktreeStatus = {
@@ -65,6 +68,27 @@ function runGit(cwd: string, args: string[]): string | undefined {
   }
 }
 
+export type EditorEnvironment = { VISUAL?: string; EDITOR?: string }
+
+export function getEditorCommand(
+  environment: EditorEnvironment = process.env,
+  platform = process.platform,
+): string | undefined {
+  return environment.VISUAL?.trim() || environment.EDITOR?.trim() || (platform === "win32" ? "notepad" : undefined)
+}
+
+export function openInEditor(
+  editorCommand: string,
+  directory: string,
+  onError?: (error: Error) => void,
+): void {
+  const [editor, ...args] = editorCommand.trim().split(/\s+/)
+  if (!editor) throw new Error("Editor command is empty.")
+  const child = spawn(editor, [...args, directory], { detached: true, stdio: "ignore", windowsHide: true })
+  if (onError) child.once("error", onError)
+  child.unref()
+}
+
 export function inspectWorktree(directory: string, git: GitRunner = runGit): WorktreeStatus {
   const worktree = git(directory, ["rev-parse", "--show-toplevel"])
   if (!worktree) return { directory, linked: false }
@@ -105,6 +129,25 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
     activeDirectory = directory
     ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", formatStatus(inspectWorktree(directory))))
   }
+
+  pi.registerCommand("open-in-editor", {
+    description: "Open the active directory in $VISUAL or $EDITOR.",
+    handler: async (_args, ctx) => {
+      const editor = getEditorCommand()
+      if (!editor) {
+        ctx.ui.notify("No editor configured. Set $VISUAL or $EDITOR, then run /open-in-editor.", "error")
+        return
+      }
+      const directory = activeDirectory ?? ctx.cwd
+      try {
+        openInEditor(editor, directory, () => {
+          ctx.ui.notify(`Could not start ${editor}. Verify $VISUAL or $EDITOR, then try /open-in-editor.`, "error")
+        })
+      } catch {
+        ctx.ui.notify(`Could not start ${editor}. Verify $VISUAL or $EDITOR, then try /open-in-editor.`, "error")
+      }
+    },
+  })
 
   pi.on("session_start", (_event, ctx) => update(ctx, ctx.cwd))
   pi.on("session_switch", (_event, ctx) => update(ctx, ctx.cwd))
