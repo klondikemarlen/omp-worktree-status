@@ -41,6 +41,19 @@ describe("inspectWorktree", () => {
       "cwd: /code/wrap-issue-438/api · wt: /code/wrap-issue-438 · branch: issue-438/prevent-stale-uat-back-merge",
     )
   })
+
+  test("keeps the worktree label at its root", () => {
+    expect(
+      formatStatus({
+        directory: "/code/wrap-issue-438",
+        worktree: "/code/wrap-issue-438",
+        branch: "issue-438/prevent-stale-uat-back-merge",
+        linked: true,
+      }),
+    ).toBe(
+      "cwd: /code/wrap-issue-438 · wt: /code/wrap-issue-438 · branch: issue-438/prevent-stale-uat-back-merge",
+    )
+  })
 })
 
 describe("worktreeStatusExtension", () => {

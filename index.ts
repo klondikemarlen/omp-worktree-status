@@ -83,7 +83,7 @@ export function formatStatus(status: WorktreeStatus): string {
     ? `~/${relative(home, status.directory)}`.replace("~/", "~")
     : status.directory
   const details = [`cwd: ${directory}`]
-  if (status.worktree && status.worktree !== status.directory) {
+  if (status.worktree) {
     const worktree = status.worktree === home || status.worktree.startsWith(`${home}/`)
       ? `~/${relative(home, status.worktree)}`.replace("~/", "~")
       : status.worktree
