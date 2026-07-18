@@ -26,6 +26,9 @@ A linked worktree displays its actual command directory, worktree root, and chec
 cwd: ~/code/icefoganalytics/wrap-issue-438/api · wt: ~/code/icefoganalytics/wrap-issue-438 · branch: issue-438/prevent-main-to-uat-releases-from-using-a-stale-uat-back-merge
 ```
 
+
+When the active directory is the root of a `main` checkout, the plugin omits its redundant status entry. Other directories and branches retain the full context above.
+
 OMP's built-in footer remains the session-start directory and branch. Extensions can add hook status, but OMP does not expose an API for replacing built-in footer segments.
 
 ## Open in editor

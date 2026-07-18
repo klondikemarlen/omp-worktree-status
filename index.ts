@@ -102,6 +102,7 @@ export function inspectWorktree(directory: string, git: GitRunner = runGit): Wor
 
 
 export function formatStatus(status: WorktreeStatus): string {
+  if (status.directory === status.worktree && status.branch === "main") return ""
   const home = homedir()
   const directory = status.directory === home || status.directory.startsWith(`${home}/`)
     ? `~/${relative(home, status.directory)}`.replace("~/", "~")

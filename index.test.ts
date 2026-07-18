@@ -67,6 +67,21 @@ describe("inspectWorktree", () => {
       "cwd: /code/wrap-issue-438 · wt: /code/wrap-issue-438 · branch: issue-438/prevent-stale-uat-back-merge",
     )
   })
+
+  test("omits redundant context for the main checkout", () => {
+    expect(formatStatus({
+      directory: "/code/project",
+      worktree: "/code/project",
+      branch: "main",
+      linked: false,
+    })).toBe("")
+    expect(formatStatus({
+      directory: "/code/project/src",
+      worktree: "/code/project",
+      branch: "main",
+      linked: false,
+    })).toBe("cwd: /code/project/src · wt: /code/project · branch: main")
+  })
 })
 
 describe("worktreeStatusExtension", () => {
