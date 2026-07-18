@@ -39,9 +39,7 @@ OMP's built-in footer remains the session-start directory and branch. Extensions
 
 Run `/open-in-editor` to open the active status directory. It uses `$VISUAL`, then `$EDITOR`; Windows falls back to `notepad`. On POSIX, configure either variable before running the command.
 
-The command opens the directory itself, not a `*.code-workspace` file, so it works for every tracked worktree.
-
-VS Code-compatible command names (`code`, `code-insiders`, `codium`, `cursor`, `windsurf`, `devin`, and `devin-desktop`) open that directory in a new window. Other editors keep their existing invocation.
+VS Code-compatible command names (`code`, `code-insiders`, `codium`, `cursor`, `windsurf`, `devin`, and `devin-desktop`) open a `*.code-workspace` file in the active worktree root in a new window. Without one, they open the active directory. Other editors always receive the active directory.
 
 Quote editor paths and configured arguments that contain spaces.
 

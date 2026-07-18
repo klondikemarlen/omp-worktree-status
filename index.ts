@@ -1,6 +1,7 @@
 import { execFileSync, spawn } from "node:child_process"
+import { readdirSync } from "node:fs"
 import { homedir } from "node:os"
-import { isAbsolute, relative, resolve } from "node:path"
+import { isAbsolute, join, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 
 const STATUS_KEY = "worktree-status"
@@ -80,16 +81,32 @@ export function getEditorCommand(
   return environment.VISUAL?.trim() || environment.EDITOR?.trim() || (platform === "win32" ? "notepad" : undefined)
 }
 
+
+function workspaceFile(directory: string): string | undefined {
+  try {
+    const workspace = readdirSync(directory, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".code-workspace"))
+      .sort((a, b) => a.name.localeCompare(b.name))[0]
+    return workspace && join(directory, workspace.name)
+  } catch {
+    return undefined
+  }
+}
+
+
+
 export function openInEditor(
   editorCommand: string,
   directory: string,
   onError?: (error: Error) => void,
+  workspaceDirectory = directory,
 ): void {
   const command = editorCommand.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g)?.map((argument) => argument.replace(/^["']|["']$/g, "")) ?? []
   const [editor, ...args] = command
   if (!editor) throw new Error("Editor command is empty.")
-  const newWindow = /(?:^|[/\\])(?:code(?:-insiders)?|codium|cursor|windsurf|devin(?:-desktop)?)(?:\.exe)?$/i.test(editor) ? ["--new-window"] : []
-  const child = spawn(editor, [...args, ...newWindow, directory], { detached: true, stdio: "ignore", windowsHide: true })
+  const codeEditor = /(?:^|[/\\])(?:code(?:-insiders)?|codium|cursor|windsurf|devin(?:-desktop)?)(?:\.exe)?$/i.test(editor)
+  const target = codeEditor ? workspaceFile(workspaceDirectory) ?? directory : directory
+  const child = spawn(editor, [...args, ...(codeEditor ? ["--new-window"] : []), target], { detached: true, stdio: "ignore", windowsHide: true })
   if (onError) child.once("error", onError)
   child.unref()
 }
@@ -156,10 +173,11 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
         return
       }
       const directory = activeDirectory ?? ctx.cwd
+      const worktree = inspectWorktree(directory).worktree ?? directory
       try {
         openInEditor(editor, directory, () => {
           ctx.ui.notify(`Could not start ${editor}. Verify $VISUAL or $EDITOR, then try /open-in-editor.`, "error")
-        })
+        }, worktree)
       } catch {
         ctx.ui.notify(`Could not start ${editor}. Verify $VISUAL or $EDITOR, then try /open-in-editor.`, "error")
       }
