@@ -177,9 +177,9 @@ describe("open-in-editor", () => {
     }
   })
 
-  test("opens VS Code worktrees in a new window", async () => {
+  test("opens VS Code-compatible worktrees in a new window", async () => {
     const temporaryDirectory = await mkdtemp(join(tmpdir(), "omp-worktree-status-"))
-    const editor = join(temporaryDirectory, "code")
+    const editor = join(temporaryDirectory, "devin-desktop")
     const openedArguments = join(temporaryDirectory, "opened-arguments")
     const previousOutput = process.env.OMP_EDITOR_OUTPUT
 
