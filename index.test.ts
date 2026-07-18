@@ -83,6 +83,26 @@ describe("inspectWorktree", () => {
       "cwd: /code/other · wt: /code/project · branch: feature",
     )
   })
+
+  test("formats home-relative paths with a slash", () => {
+    const home = homedir()
+
+    expect(formatStatus({ directory: home, worktree: home, branch: "feature", linked: false })).toBe(
+      "cwd: ~ · wt: ~ · branch: feature",
+    )
+    expect(formatStatus({
+      directory: `${home}/code/project`,
+      worktree: `${home}/code/project`,
+      branch: "feature",
+      linked: false,
+    })).toBe("cwd: ~/code/project · wt: ~/code/project · branch: feature")
+    expect(formatStatus({
+      directory: `${home}-other/project`,
+      worktree: `${home}-other/project`,
+      branch: "feature",
+      linked: false,
+    })).toBe(`cwd: ${home}-other/project · wt: ${home}-other/project · branch: feature`)
+  })
 })
 
 describe("worktreeStatusExtension", () => {
