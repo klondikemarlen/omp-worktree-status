@@ -1,6 +1,7 @@
 import { execFileSync, spawn } from "node:child_process"
 import { homedir } from "node:os"
 import { isAbsolute, relative, resolve } from "node:path"
+import { pathToFileURL } from "node:url"
 
 const STATUS_KEY = "worktree-status"
 
@@ -34,6 +35,8 @@ export type WorktreeStatus = {
   branch?: string
   linked: boolean
 }
+
+type StatusEnvironment = { PTYXIS_VERSION?: string }
 
 
 function unquote(directory: string): string | undefined {
@@ -103,18 +106,28 @@ export function inspectWorktree(directory: string, git: GitRunner = runGit): Wor
 }
 
 
-export function formatStatus(status: WorktreeStatus, sessionDirectory = status.directory): string {
+export function formatStatus(
+  status: WorktreeStatus,
+  sessionDirectory = status.directory,
+  environment: StatusEnvironment = {},
+): string {
   if (status.worktree && status.branch === "main" && resolve(status.worktree) === resolve(sessionDirectory)) return ""
   const home = homedir()
   const directory = status.directory === home
     ? "~"
     : status.directory.startsWith(`${home}/`) ? `~/${relative(home, status.directory)}` : status.directory
-  const details = [`cwd: ${directory}`]
+  const directoryText = environment.PTYXIS_VERSION
+    ? `\u001B]8;;${pathToFileURL(resolve(status.directory)).href}\u001B\\${directory}\u001B]8;;\u001B\\`
+    : directory
+  const details = [`cwd: ${directoryText}`]
   if (status.worktree) {
     const worktree = status.worktree === home
       ? "~"
       : status.worktree.startsWith(`${home}/`) ? `~/${relative(home, status.worktree)}` : status.worktree
-    details.push(`wt: ${worktree}`)
+    const worktreeText = environment.PTYXIS_VERSION
+      ? `\u001B]8;;${pathToFileURL(resolve(status.worktree)).href}\u001B\\${worktree}\u001B]8;;\u001B\\`
+      : worktree
+    details.push(`wt: ${worktreeText}`)
   }
   if (status.branch) details.push(`branch: ${status.branch}`)
   else if (status.worktree) details.push("branch: detached")
@@ -130,7 +143,7 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
     const parentSession = ctx.sessionManager.getHeader()?.parentSession
     if ((typeof parentSession === "string" && parentSession.length > 0) || directory === activeDirectory) return
     activeDirectory = directory
-    const text = formatStatus(inspectWorktree(directory), ctx.cwd)
+    const text = formatStatus(inspectWorktree(directory), ctx.cwd, process.env)
     ctx.ui.setStatus(STATUS_KEY, text ? ctx.ui.theme.fg("dim", text) : undefined)
   }
 
