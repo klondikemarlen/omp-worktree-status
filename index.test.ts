@@ -204,6 +204,33 @@ describe("open-in-editor", () => {
     }
   })
 
+  test("parses quoted editor paths and arguments", async () => {
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), "omp-worktree-status-"))
+    const editor = join(temporaryDirectory, "editor with spaces")
+    const openedArguments = join(temporaryDirectory, "opened-arguments")
+    const previousOutput = process.env.OMP_EDITOR_OUTPUT
+
+    await writeFile(editor, '#!/bin/sh\nprintf "%s\\n" "$@" > "$OMP_EDITOR_OUTPUT"\n')
+    await chmod(editor, 0o755)
+    process.env.OMP_EDITOR_OUTPUT = openedArguments
+
+    try {
+      const watcher = watch(temporaryDirectory)[Symbol.asyncIterator]()
+      try {
+        const opened = watcher.next()
+        openInEditor(`"${editor}" "--wait for editor"`, "/tmp/worktree")
+        await opened
+      } finally {
+        await watcher.return?.()
+      }
+      expect(await readFile(openedArguments, "utf8")).toBe("--wait for editor\n/tmp/worktree\n")
+    } finally {
+      if (previousOutput === undefined) delete process.env.OMP_EDITOR_OUTPUT
+      else process.env.OMP_EDITOR_OUTPUT = previousOutput
+      await rm(temporaryDirectory, { force: true, recursive: true })
+    }
+  })
+
   test("reports a missing editor configuration", async () => {
     const previousVisual = process.env.VISUAL
     const previousEditor = process.env.EDITOR
