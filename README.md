@@ -29,6 +29,8 @@ cwd: ~/code/icefoganalytics/wrap-issue-438/api · wt: ~/code/icefoganalytics/wra
 
 When the selected `main` worktree root matches OMP's session directory, the plugin omits its redundant status entry. Other worktrees and branches retain the full context above.
 
+Paths inside the home directory use the conventional `~/` prefix.
+
 OMP's built-in footer remains the session-start directory and branch. Extensions can add hook status, but OMP does not expose an API for replacing built-in footer segments.
 
 ## Open in editor
