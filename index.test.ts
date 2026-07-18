@@ -1,4 +1,5 @@
-import { chmod, mkdtemp, readFile, rm, watch, writeFile } from "node:fs/promises"
+import { execFileSync } from "node:child_process"
+import { chmod, mkdir, mkdtemp, readFile, rm, watch, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, test } from "bun:test"
@@ -210,6 +211,61 @@ describe("open-in-editor", () => {
       else process.env.VISUAL = previousVisual
       if (previousEditor === undefined) delete process.env.EDITOR
       else process.env.EDITOR = previousEditor
+      if (previousOutput === undefined) delete process.env.OMP_EDITOR_OUTPUT
+      else process.env.OMP_EDITOR_OUTPUT = previousOutput
+      await rm(temporaryDirectory, { force: true, recursive: true })
+    }
+  })
+
+  test("opens a worktree workspace file in a new VS Code window", async () => {
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), "omp-worktree-status-"))
+    const activeDirectory = join(temporaryDirectory, "nested")
+    const editor = join(temporaryDirectory, "code")
+    const workspace = join(temporaryDirectory, "project.code-workspace")
+    const openedArguments = join(temporaryDirectory, "opened-arguments")
+    const previousVisual = process.env.VISUAL
+    const previousOutput = process.env.OMP_EDITOR_OUTPUT
+    let command: CommandHandler | undefined
+
+    await mkdir(activeDirectory)
+    execFileSync("git", ["init", temporaryDirectory], { stdio: "ignore" })
+    await writeFile(editor, '#!/bin/sh\nprintf "%s\\n" "$@" > "$OMP_EDITOR_OUTPUT"\n')
+    await chmod(editor, 0o755)
+    await writeFile(workspace, "{}")
+    process.env.VISUAL = editor
+    process.env.OMP_EDITOR_OUTPUT = openedArguments
+
+    try {
+      const handlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
+      const context = {
+        cwd: activeDirectory,
+        sessionManager: { getHeader: () => null },
+        ui: { notify() {}, setStatus() {}, theme: { fg(_color: string, text: string) { return text } } },
+      } satisfies ExtensionContext
+      const plugin = {
+        on(event: ExtensionEvent, handler: ExtensionHandler) {
+          handlers[event] = handler
+        },
+        registerCommand(name: string, options: { handler: CommandHandler }) {
+          if (name === "open-in-editor") command = options.handler
+        },
+      } satisfies ExtensionApi
+
+      worktreeStatusExtension(plugin)
+      handlers.session_start?.({}, context)
+      if (!command) throw new Error("Expected /open-in-editor command.")
+      const watcher = watch(temporaryDirectory)[Symbol.asyncIterator]()
+      try {
+        const opened = watcher.next()
+        await command("", context)
+        await opened
+      } finally {
+        await watcher.return?.()
+      }
+      expect(await readFile(openedArguments, "utf8")).toBe(`--new-window\n${workspace}\n`)
+    } finally {
+      if (previousVisual === undefined) delete process.env.VISUAL
+      else process.env.VISUAL = previousVisual
       if (previousOutput === undefined) delete process.env.OMP_EDITOR_OUTPUT
       else process.env.OMP_EDITOR_OUTPUT = previousOutput
       await rm(temporaryDirectory, { force: true, recursive: true })
