@@ -31,6 +31,8 @@ When the selected `main` worktree root matches OMP's session directory, the plug
 
 Paths inside the home directory use the conventional `~/` prefix.
 
+In Ptyxis, `cwd` and `wt` paths are Ctrl-clickable links. Other terminals receive the same plain-text status.
+
 OMP's built-in footer remains the session-start directory and branch. Extensions can add hook status, but OMP does not expose an API for replacing built-in footer segments.
 
 ## Open in editor
