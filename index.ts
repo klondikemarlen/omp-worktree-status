@@ -103,8 +103,8 @@ export function inspectWorktree(directory: string, git: GitRunner = runGit): Wor
 }
 
 
-export function formatStatus(status: WorktreeStatus): string {
-  if (status.directory === status.worktree && status.branch === "main") return ""
+export function formatStatus(status: WorktreeStatus, sessionDirectory = status.directory): string {
+  if (status.worktree && status.branch === "main" && resolve(status.worktree) === resolve(sessionDirectory)) return ""
   const home = homedir()
   const directory = status.directory === home || status.directory.startsWith(`${home}/`)
     ? `~/${relative(home, status.directory)}`.replace("~/", "~")
@@ -130,7 +130,8 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
     const parentSession = ctx.sessionManager.getHeader()?.parentSession
     if ((typeof parentSession === "string" && parentSession.length > 0) || directory === activeDirectory) return
     activeDirectory = directory
-    ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg("dim", formatStatus(inspectWorktree(directory))))
+    const text = formatStatus(inspectWorktree(directory), ctx.cwd)
+    ctx.ui.setStatus(STATUS_KEY, text ? ctx.ui.theme.fg("dim", text) : undefined)
   }
 
   pi.registerCommand("open-in-editor", {
