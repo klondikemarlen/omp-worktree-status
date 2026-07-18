@@ -84,7 +84,8 @@ export function openInEditor(
 ): void {
   const [editor, ...args] = editorCommand.trim().split(/\s+/)
   if (!editor) throw new Error("Editor command is empty.")
-  const child = spawn(editor, [...args, directory], { detached: true, stdio: "ignore", windowsHide: true })
+  const newWindow = /(?:^|[/\\])(?:code(?:-insiders)?|codium|cursor|windsurf|devin)(?:\.exe)?$/i.test(editor) ? ["--new-window"] : []
+  const child = spawn(editor, [...args, ...newWindow, directory], { detached: true, stdio: "ignore", windowsHide: true })
   if (onError) child.once("error", onError)
   child.unref()
 }
