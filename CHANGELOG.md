@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Open active worktree VS Code workspace files in new editor windows.
+
 
 ## 0.2.0
 
