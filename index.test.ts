@@ -11,6 +11,7 @@ import worktreeStatusExtension, {
   formatStatus,
   getEditorCommand,
   inspectWorktree,
+  openInEditor,
   toolDirectory,
 } from "./index.ts"
 
@@ -155,6 +156,33 @@ describe("open-in-editor", () => {
       else process.env.VISUAL = previousVisual
       if (previousEditor === undefined) delete process.env.EDITOR
       else process.env.EDITOR = previousEditor
+      if (previousOutput === undefined) delete process.env.OMP_EDITOR_OUTPUT
+      else process.env.OMP_EDITOR_OUTPUT = previousOutput
+      await rm(temporaryDirectory, { force: true, recursive: true })
+    }
+  })
+
+  test("opens VS Code worktrees in a new window", async () => {
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), "omp-worktree-status-"))
+    const editor = join(temporaryDirectory, "code")
+    const openedArguments = join(temporaryDirectory, "opened-arguments")
+    const previousOutput = process.env.OMP_EDITOR_OUTPUT
+
+    await writeFile(editor, '#!/bin/sh\nprintf "%s\\n" "$@" > "$OMP_EDITOR_OUTPUT"\n')
+    await chmod(editor, 0o755)
+    process.env.OMP_EDITOR_OUTPUT = openedArguments
+
+    try {
+      const watcher = watch(temporaryDirectory)[Symbol.asyncIterator]()
+      try {
+        const opened = watcher.next()
+        openInEditor(editor, "/tmp/worktree")
+        await opened
+      } finally {
+        await watcher.return?.()
+      }
+      expect(await readFile(openedArguments, "utf8")).toBe("--new-window\n/tmp/worktree\n")
+    } finally {
       if (previousOutput === undefined) delete process.env.OMP_EDITOR_OUTPUT
       else process.env.OMP_EDITOR_OUTPUT = previousOutput
       await rm(temporaryDirectory, { force: true, recursive: true })
