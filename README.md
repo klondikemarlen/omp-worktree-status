@@ -39,6 +39,8 @@ The command opens the directory itself, not a `*.code-workspace` file, so it wor
 
 VS Code-compatible command names (`code`, `code-insiders`, `codium`, `cursor`, `windsurf`, and `devin`) open that directory in a new window. Other editors keep their existing invocation.
 
+Quote editor paths and configured arguments that contain spaces.
+
 ## Development
 
 ```sh
