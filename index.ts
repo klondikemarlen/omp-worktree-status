@@ -106,14 +106,14 @@ export function inspectWorktree(directory: string, git: GitRunner = runGit): Wor
 export function formatStatus(status: WorktreeStatus, sessionDirectory = status.directory): string {
   if (status.worktree && status.branch === "main" && resolve(status.worktree) === resolve(sessionDirectory)) return ""
   const home = homedir()
-  const directory = status.directory === home || status.directory.startsWith(`${home}/`)
-    ? `~/${relative(home, status.directory)}`.replace("~/", "~")
-    : status.directory
+  const directory = status.directory === home
+    ? "~"
+    : status.directory.startsWith(`${home}/`) ? `~/${relative(home, status.directory)}` : status.directory
   const details = [`cwd: ${directory}`]
   if (status.worktree) {
-    const worktree = status.worktree === home || status.worktree.startsWith(`${home}/`)
-      ? `~/${relative(home, status.worktree)}`.replace("~/", "~")
-      : status.worktree
+    const worktree = status.worktree === home
+      ? "~"
+      : status.worktree.startsWith(`${home}/`) ? `~/${relative(home, status.worktree)}` : status.worktree
     details.push(`wt: ${worktree}`)
   }
   if (status.branch) details.push(`branch: ${status.branch}`)
