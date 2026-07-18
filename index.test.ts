@@ -103,6 +103,25 @@ describe("inspectWorktree", () => {
       linked: false,
     })).toBe(`cwd: ${home}-other/project · wt: ${home}-other/project · branch: feature`)
   })
+
+  test("links status paths only in Ptyxis", () => {
+    const status = {
+      directory: "/tmp/project with spaces",
+      worktree: "/tmp/worktree#one",
+      branch: "feature",
+      linked: false,
+    }
+    const escape = "\u001B"
+    const opened = formatStatus(status, status.directory, { PTYXIS_VERSION: "48.0" })
+
+    expect(opened).toBe(
+      `cwd: ${escape}]8;;file:///tmp/project%20with%20spaces${escape}\\${status.directory}${escape}]8;;${escape}\\ · wt: ${escape}]8;;file:///tmp/worktree%23one${escape}\\${status.worktree}${escape}]8;;${escape}\\ · branch: feature`,
+    )
+    expect(formatStatus(status, status.directory, {})).toBe(
+      "cwd: /tmp/project with spaces · wt: /tmp/worktree#one · branch: feature",
+    )
+    expect(formatStatus(status, status.directory, {})).not.toContain(escape)
+  })
 })
 
 describe("worktreeStatusExtension", () => {
@@ -136,8 +155,8 @@ describe("worktreeStatusExtension", () => {
     toolCall({ toolName: "bash", input: { command: "cd /tmp/worktree && git status" } }, context)
 
     expect(statuses).toEqual([
-      "cwd: /tmp/session · not a Git worktree",
-      "cwd: /tmp/worktree · not a Git worktree",
+      formatStatus({ directory: "/tmp/session", linked: false }, context.cwd, process.env),
+      formatStatus({ directory: "/tmp/worktree", linked: false }, context.cwd, process.env),
     ])
   })
 })
