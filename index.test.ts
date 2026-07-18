@@ -69,19 +69,19 @@ describe("inspectWorktree", () => {
     )
   })
 
-  test("omits redundant context for the main checkout", () => {
-    expect(formatStatus({
-      directory: "/code/project",
+  test("omits context only for the session main worktree root", () => {
+    const status = {
+      directory: "/code/other",
       worktree: "/code/project",
       branch: "main",
       linked: false,
-    })).toBe("")
-    expect(formatStatus({
-      directory: "/code/project/src",
-      worktree: "/code/project",
-      branch: "main",
-      linked: false,
-    })).toBe("cwd: /code/project/src · wt: /code/project · branch: main")
+    }
+
+    expect(formatStatus(status, "/code/project/../project")).toBe("")
+    expect(formatStatus(status, "/code/session")).toBe("cwd: /code/other · wt: /code/project · branch: main")
+    expect(formatStatus({ ...status, branch: "feature" }, "/code/project")).toBe(
+      "cwd: /code/other · wt: /code/project · branch: feature",
+    )
   })
 })
 
