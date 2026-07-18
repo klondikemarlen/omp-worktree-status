@@ -232,6 +232,7 @@ describe("open-in-editor", () => {
     await writeFile(editor, '#!/bin/sh\nprintf "%s\\n" "$@" > "$OMP_EDITOR_OUTPUT"\n')
     await chmod(editor, 0o755)
     await writeFile(workspace, "{}")
+    await writeFile(join(temporaryDirectory, "z-project.code-workspace"), "{}")
     process.env.VISUAL = editor
     process.env.OMP_EDITOR_OUTPUT = openedArguments
 
