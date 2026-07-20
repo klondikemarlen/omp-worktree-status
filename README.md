@@ -35,6 +35,19 @@ In Ptyxis, `cwd` and `wt` paths are Ctrl-clickable links. Other terminals receiv
 
 OMP's built-in footer remains the session-start directory and branch. Extensions can add hook status, but OMP does not expose an API for replacing built-in footer segments.
 
+## Extension context
+
+Other OMP extensions can read the active status context without maintaining their own directory state:
+
+```ts
+import { getActiveWorktreeContext } from "omp-worktree-status"
+
+const context = getActiveWorktreeContext()
+// Readonly<{ directory: string; worktree?: string; branch?: string; linked: boolean }> | undefined
+```
+
+The same immutable snapshot is available at `globalThis[Symbol.for("omp-worktree-status.active-worktree-context")]` for extensions that cannot import this package. It is initialized from a non-empty session directory, updated only after a Bash call with a reliable `cwd` or leading `cd` succeeds, reinitialized on a session change, and cleared at shutdown. Treat it as display context, not as a substitute for resolving each command's own execution directory.
+
 ## Open in editor
 
 Run `/open-in-editor` to open the active status directory. It uses `$VISUAL`, then `$EDITOR`; Windows falls back to `notepad`. On POSIX, configure either variable before running the command.
