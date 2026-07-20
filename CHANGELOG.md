@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1
 
 - Resolve relative Bash tool directories from the session root.
 
