@@ -188,7 +188,7 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
   pi.on("session_switch", (_event, ctx) => update(ctx, ctx.cwd))
   pi.on("tool_call", (event, ctx) => {
     if (event.toolName !== "bash" || !event.input) return
-    const directory = toolDirectory(event.input, activeDirectory ?? ctx.cwd)
+    const directory = toolDirectory(event.input, ctx.cwd)
     if (directory) update(ctx, directory)
   })
   pi.on("session_shutdown", (_event, ctx) => {
