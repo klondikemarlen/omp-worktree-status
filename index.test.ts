@@ -10,6 +10,7 @@ import worktreeStatusExtension, {
   type ExtensionEvent,
   type ExtensionHandler,
   formatStatus,
+  getActiveWorktreeContext,
   getEditorCommand,
   inspectWorktree,
   openInEditor,
@@ -23,6 +24,7 @@ describe("toolDirectory", () => {
 
   test("tracks the leading cd used by a Bash command", () => {
     expect(toolDirectory({ command: "cd ~/code/wrap-issue-438 && git status --short" }, "/tmp/session")).toBe(`${homedir()}/code/wrap-issue-438`)
+    expect(toolDirectory({ command: "cd /missing; true" }, "/tmp/session")).toBeUndefined()
   })
 })
 
@@ -150,14 +152,17 @@ describe("worktreeStatusExtension", () => {
     worktreeStatusExtension(plugin)
 
     const sessionStart = handlers.session_start
-    const toolCall = handlers.tool_call
-    if (!sessionStart || !toolCall) throw new Error("Expected status handlers.")
+    const toolResult = handlers.tool_result
+    if (!sessionStart || !toolResult) throw new Error("Expected status handlers.")
     sessionStart({}, context)
-    toolCall({ toolName: "bash", input: { command: "cd /tmp/worktree && git status" } }, context)
-    toolCall({ toolName: "bash", input: { cwd: "web" } }, context)
-    toolCall({ toolName: "bash", input: { cwd: "web/api" } }, context)
-    toolCall({ toolName: "bash", input: { command: "cd web && git status" } }, context)
-    toolCall({ toolName: "bash", input: { command: "cd web && git status" } }, context)
+    const inputs = [
+      { command: "cd /tmp/worktree && git status" },
+      { cwd: "web" },
+      { cwd: "web/api" },
+      { command: "cd web && git status" },
+      { command: "cd web && git status" },
+    ]
+    for (const input of inputs) toolResult({ toolName: "bash", input: { ...input } }, context)
 
     expect(statuses).toEqual([
       formatStatus({ directory: "/tmp/session", linked: false }, context.cwd, process.env),
@@ -166,6 +171,56 @@ describe("worktreeStatusExtension", () => {
       formatStatus({ directory: "/tmp/session/web/api", linked: false }, context.cwd, process.env),
       formatStatus({ directory: "/tmp/session/web", linked: false }, context.cwd, process.env),
     ])
+  })
+
+  test("publishes immutable successful Bash context and clears it per session", () => {
+    const handlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
+    const context = {
+      cwd: "/tmp/session",
+      sessionManager: { getHeader: () => null },
+      ui: { notify() {}, setStatus() {}, theme: { fg(_color: string, text: string) { return text } } },
+    } satisfies ExtensionContext
+    const plugin = {
+      on(event: ExtensionEvent, handler: ExtensionHandler) {
+        handlers[event] = handler
+      },
+      registerCommand() {},
+    } satisfies ExtensionApi
+
+    worktreeStatusExtension(plugin)
+
+    const sessionStart = handlers.session_start
+    const sessionSwitch = handlers.session_switch
+    const sessionShutdown = handlers.session_shutdown
+    const toolResult = handlers.tool_result
+    if (!sessionStart || !sessionSwitch || !sessionShutdown || !toolResult) throw new Error("Expected status handlers.")
+    sessionStart({}, context)
+    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
+
+    toolResult({ toolName: "bash", input: { cwd: "/tmp/failed" }, isError: true }, context)
+    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
+    toolResult({ toolName: "bash", input: { cwd: "/tmp/failed" }, details: { exitCode: 1 } }, context)
+    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
+    toolResult({ toolName: "bash", input: { cwd: "/tmp/failed" }, details: { async: { state: "running" } } }, context)
+    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
+    toolResult({ toolName: "bash", input: { command: "cd /tmp/missing; true" } }, context)
+    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
+
+
+
+    toolResult({ toolName: "bash", input: { cwd: "/tmp/worktree" } }, context)
+    const active = getActiveWorktreeContext()
+    expect(active).toEqual({ directory: "/tmp/worktree", linked: false })
+    expect(Object.isFrozen(active)).toBe(true)
+
+    const nextContext = { ...context, cwd: "/tmp/next-session" }
+    sessionSwitch({}, nextContext)
+    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/next-session", linked: false })
+
+    sessionShutdown({}, nextContext)
+    expect(getActiveWorktreeContext()).toBeUndefined()
+    sessionStart({}, { ...nextContext, cwd: " " })
+    expect(getActiveWorktreeContext()).toBeUndefined()
   })
 })
 
@@ -202,7 +257,7 @@ describe("open-in-editor", () => {
       } satisfies ExtensionApi
 
       worktreeStatusExtension(plugin)
-      handlers.tool_call?.({ toolName: "bash", input: { command: "cd /tmp/worktree && git status" } }, context)
+      handlers.tool_result?.({ toolName: "bash", input: { command: "cd /tmp/worktree && git status" } }, context)
       if (!command) throw new Error("Expected /open-in-editor command.")
       const watcher = watch(temporaryDirectory)[Symbol.asyncIterator]()
       try {

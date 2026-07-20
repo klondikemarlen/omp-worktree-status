@@ -5,6 +5,8 @@ import { isAbsolute, join, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 
 const STATUS_KEY = "worktree-status"
+export const ACTIVE_WORKTREE_CONTEXT = Symbol.for("omp-worktree-status.active-worktree-context")
+
 
 type ToolInput = Record<string, unknown>
 type GitRunner = (cwd: string, args: string[]) => string | undefined
@@ -21,8 +23,8 @@ export type ExtensionContext = {
   }
 }
 
-export type ExtensionEvent = "session_start" | "session_switch" | "session_shutdown" | "tool_call"
-export type ExtensionHandler = (event: { toolName?: string; input?: ToolInput }, ctx: ExtensionContext) => void
+export type ExtensionEvent = "session_start" | "session_switch" | "session_shutdown" | "tool_call" | "tool_result"
+export type ExtensionHandler = (event: { toolName?: string; input?: ToolInput; details?: { exitCode?: number; async?: { state?: "running" | "completed" | "failed" } }; isError?: boolean }, ctx: ExtensionContext) => void
 export type CommandHandler = (args: string, ctx: ExtensionContext) => Promise<void>
 
 export type ExtensionApi = {
@@ -37,6 +39,12 @@ export type WorktreeStatus = {
   linked: boolean
 }
 
+export type ActiveWorktreeContext = Readonly<WorktreeStatus>
+
+export function getActiveWorktreeContext(): ActiveWorktreeContext | undefined {
+  return (globalThis as Record<symbol, ActiveWorktreeContext | undefined>)[ACTIVE_WORKTREE_CONTEXT]
+}
+
 type StatusEnvironment = { PTYXIS_VERSION?: string }
 
 
@@ -47,7 +55,7 @@ function unquote(directory: string): string | undefined {
 }
 
 function commandDirectory(command: string, cwd: string): string | undefined {
-  const directory = command.match(/^\s*cd(?:\s+--)?\s+((?:'[^']*'|"[^"]*"|[^\s;&|]+))\s*(?:&&|;|\n)/)?.[1]
+  const directory = command.match(/^\s*cd(?:\s+--)?\s+((?:'[^']*'|"[^"]*"|[^\s;&|]+))\s*&&/)?.[1]
   const parsed = directory && unquote(directory)
   if (!parsed) return undefined
   const expanded = parsed === "~" || parsed.startsWith("~/") ? `${homedir()}${parsed.slice(1)}` : parsed
@@ -155,13 +163,42 @@ export function formatStatus(
 
 export default function worktreeStatusExtension(pi: ExtensionApi): void {
   let activeDirectory: string | undefined
+  let activeContext: ActiveWorktreeContext | undefined
+  let sessionDirectory: string | undefined
+
+  Object.defineProperty(globalThis, ACTIVE_WORKTREE_CONTEXT, {
+    configurable: true,
+    get: () => activeContext,
+  })
+
+  const clear = () => {
+    activeDirectory = undefined
+    activeContext = undefined
+  }
 
   const update = (ctx: ExtensionContext, directory: string) => {
     const parentSession = ctx.sessionManager.getHeader()?.parentSession
     if ((typeof parentSession === "string" && parentSession.length > 0) || directory === activeDirectory) return
     activeDirectory = directory
-    const text = formatStatus(inspectWorktree(directory), ctx.cwd, process.env)
+    const status = inspectWorktree(directory)
+    activeContext = Object.freeze({ ...status })
+    const text = formatStatus(status, ctx.cwd, process.env)
     ctx.ui.setStatus(STATUS_KEY, text ? ctx.ui.theme.fg("dim", text) : undefined)
+  }
+
+  const reset = (ctx: ExtensionContext) => {
+    clear()
+    sessionDirectory = ctx.cwd.trim() || undefined
+    const parentSession = ctx.sessionManager.getHeader()?.parentSession
+    if (!sessionDirectory || (typeof parentSession === "string" && parentSession.length > 0)) {
+      ctx.ui.setStatus(STATUS_KEY, undefined)
+      return
+    }
+    update(ctx, sessionDirectory)
+  }
+
+  const ensureSession = (ctx: ExtensionContext) => {
+    if (sessionDirectory !== (ctx.cwd.trim() || undefined)) reset(ctx)
   }
 
   pi.registerCommand("open-in-editor", {
@@ -184,15 +221,24 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
     },
   })
 
-  pi.on("session_start", (_event, ctx) => update(ctx, ctx.cwd))
-  pi.on("session_switch", (_event, ctx) => update(ctx, ctx.cwd))
-  pi.on("tool_call", (event, ctx) => {
-    if (event.toolName !== "bash" || !event.input) return
+  pi.on("session_start", (_event, ctx) => reset(ctx))
+  pi.on("session_switch", (_event, ctx) => reset(ctx))
+  pi.on("tool_result", (event, ctx) => {
+    ensureSession(ctx)
+    if (
+      event.toolName !== "bash" ||
+      !event.input ||
+      event.isError ||
+      event.details?.async?.state === "running" ||
+      event.details?.async?.state === "failed" ||
+      (event.details?.exitCode !== undefined && event.details.exitCode !== 0)
+    ) return
     const directory = toolDirectory(event.input, ctx.cwd)
     if (directory) update(ctx, directory)
   })
   pi.on("session_shutdown", (_event, ctx) => {
-    activeDirectory = undefined
+    sessionDirectory = undefined
+    clear()
     ctx.ui.setStatus(STATUS_KEY, undefined)
   })
 }
