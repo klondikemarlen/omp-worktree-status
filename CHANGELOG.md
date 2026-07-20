@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- Expose immutable active worktree context to cooperating extensions after successful Bash commands.
+
 ## 0.3.1
 
 - Resolve relative Bash tool directories from the session root.
