@@ -126,7 +126,7 @@ describe("inspectWorktree", () => {
 })
 
 describe("worktreeStatusExtension", () => {
-  test("updates only the top-level status from the latest Bash directory", () => {
+  test("updates status without duplicating relative Bash cwd values", () => {
     const handlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
     const statuses: Array<string | undefined> = []
     const context = {
@@ -154,10 +154,17 @@ describe("worktreeStatusExtension", () => {
     if (!sessionStart || !toolCall) throw new Error("Expected status handlers.")
     sessionStart({}, context)
     toolCall({ toolName: "bash", input: { command: "cd /tmp/worktree && git status" } }, context)
+    toolCall({ toolName: "bash", input: { cwd: "web" } }, context)
+    toolCall({ toolName: "bash", input: { cwd: "web/api" } }, context)
+    toolCall({ toolName: "bash", input: { command: "cd web && git status" } }, context)
+    toolCall({ toolName: "bash", input: { command: "cd web && git status" } }, context)
 
     expect(statuses).toEqual([
       formatStatus({ directory: "/tmp/session", linked: false }, context.cwd, process.env),
       formatStatus({ directory: "/tmp/worktree", linked: false }, context.cwd, process.env),
+      formatStatus({ directory: "/tmp/session/web", linked: false }, context.cwd, process.env),
+      formatStatus({ directory: "/tmp/session/web/api", linked: false }, context.cwd, process.env),
+      formatStatus({ directory: "/tmp/session/web", linked: false }, context.cwd, process.env),
     ])
   })
 })
