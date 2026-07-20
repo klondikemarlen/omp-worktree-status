@@ -24,7 +24,7 @@ export type ExtensionContext = {
 }
 
 export type ExtensionEvent = "session_start" | "session_switch" | "session_shutdown" | "tool_call" | "tool_result"
-export type ExtensionHandler = (event: { toolName?: string; input?: ToolInput; isError?: boolean }, ctx: ExtensionContext) => void
+export type ExtensionHandler = (event: { toolName?: string; input?: ToolInput; details?: { exitCode?: number; async?: { state?: "running" | "completed" | "failed" } }; isError?: boolean }, ctx: ExtensionContext) => void
 export type CommandHandler = (args: string, ctx: ExtensionContext) => Promise<void>
 
 export type ExtensionApi = {
@@ -55,7 +55,7 @@ function unquote(directory: string): string | undefined {
 }
 
 function commandDirectory(command: string, cwd: string): string | undefined {
-  const directory = command.match(/^\s*cd(?:\s+--)?\s+((?:'[^']*'|"[^"]*"|[^\s;&|]+))\s*(?:&&|;|\n)/)?.[1]
+  const directory = command.match(/^\s*cd(?:\s+--)?\s+((?:'[^']*'|"[^"]*"|[^\s;&|]+))\s*&&/)?.[1]
   const parsed = directory && unquote(directory)
   if (!parsed) return undefined
   const expanded = parsed === "~" || parsed.startsWith("~/") ? `${homedir()}${parsed.slice(1)}` : parsed
@@ -225,7 +225,14 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
   pi.on("session_switch", (_event, ctx) => reset(ctx))
   pi.on("tool_result", (event, ctx) => {
     ensureSession(ctx)
-    if (event.toolName !== "bash" || !event.input || event.isError) return
+    if (
+      event.toolName !== "bash" ||
+      !event.input ||
+      event.isError ||
+      event.details?.async?.state === "running" ||
+      event.details?.async?.state === "failed" ||
+      (event.details?.exitCode !== undefined && event.details.exitCode !== 0)
+    ) return
     const directory = toolDirectory(event.input, ctx.cwd)
     if (directory) update(ctx, directory)
   })

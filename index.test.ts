@@ -24,6 +24,7 @@ describe("toolDirectory", () => {
 
   test("tracks the leading cd used by a Bash command", () => {
     expect(toolDirectory({ command: "cd ~/code/wrap-issue-438 && git status --short" }, "/tmp/session")).toBe(`${homedir()}/code/wrap-issue-438`)
+    expect(toolDirectory({ command: "cd /missing; true" }, "/tmp/session")).toBeUndefined()
   })
 })
 
@@ -198,6 +199,14 @@ describe("worktreeStatusExtension", () => {
 
     toolResult({ toolName: "bash", input: { cwd: "/tmp/failed" }, isError: true }, context)
     expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
+    toolResult({ toolName: "bash", input: { cwd: "/tmp/failed" }, details: { exitCode: 1 } }, context)
+    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
+    toolResult({ toolName: "bash", input: { cwd: "/tmp/failed" }, details: { async: { state: "running" } } }, context)
+    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
+    toolResult({ toolName: "bash", input: { command: "cd /tmp/missing; true" } }, context)
+    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
+
+
 
     toolResult({ toolName: "bash", input: { cwd: "/tmp/worktree" } }, context)
     const active = getActiveWorktreeContext()
