@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2
+
+- Force GitHub plugin installation during release verification.
+
 ## 0.4.1
 
 - Keep worktree status aligned with current branch and session context.
