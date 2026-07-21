@@ -237,9 +237,7 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
       event.details?.async?.state === "failed" ||
       (event.details?.exitCode !== undefined && event.details.exitCode !== 0)
     ) return
-    const hasUnreliableDirectoryChange =
-      typeof event.input.command === "string" && /^\s*cd(?:\s|$)/.test(event.input.command)
-    const directory = toolDirectory(event.input, ctx.cwd) ?? (hasUnreliableDirectoryChange ? undefined : ctx.cwd)
+    const directory = toolDirectory(event.input, ctx.cwd) ?? ctx.cwd
     if (directory) update(ctx, directory)
   })
   pi.on("session_shutdown", (_event, ctx) => {

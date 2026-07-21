@@ -255,7 +255,7 @@ describe("worktreeStatusExtension", () => {
     expect(active).toEqual({ directory: "/tmp/worktree", linked: false })
     expect(Object.isFrozen(active)).toBe(true)
     toolResult({ toolName: "bash", input: { command: "cd /tmp/missing; true" } }, context)
-    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/worktree", linked: false })
+    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
     toolResult({ toolName: "bash", input: { command: "git status" } }, context)
     expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
 
