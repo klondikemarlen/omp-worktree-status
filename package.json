@@ -7,7 +7,7 @@
   "scripts": {
     "test": "bun test",
     "release:check": "bun test",
-    "reinstall": "omp plugin install github:klondikemarlen/omp-worktree-status"
+    "reinstall": "omp plugin install --force github:klondikemarlen/omp-worktree-status"
   },
   "keywords": ["omp-plugin", "git", "worktree", "statusline"],
   "repository": {
