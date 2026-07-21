@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+- Keep worktree status aligned with current branch and session context.
+
 ## 0.4.0
 
 - Expose immutable active worktree context to cooperating extensions after successful Bash commands.
