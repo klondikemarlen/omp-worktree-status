@@ -14,7 +14,7 @@ Restart OMP after installation.
 
 ## Status behavior
 
-The status starts at the session directory. It changes when a Bash tool call supplies `cwd`, or when its command begins with a simple directory switch such as:
+The status starts at the session directory. On each successful Bash call, it uses an explicit `cwd`, a leading simple directory switch, or the session directory when neither is supplied:
 
 ```sh
 cd ~/code/icefoganalytics/wrap-issue-438 && git status --short --branch
@@ -27,7 +27,7 @@ cwd: ~/code/icefoganalytics/wrap-issue-438/api · wt: ~/code/icefoganalytics/wra
 ```
 
 
-When the selected `main` worktree root matches OMP's session directory, the plugin omits its redundant status entry. Other worktrees and branches retain the full context above.
+When the selected primary worktree root matches OMP's session directory, the plugin omits its redundant status entry regardless of branch. Linked worktrees and other worktrees retain the full context above.
 
 Paths inside the home directory use the conventional `~/` prefix.
 
@@ -46,7 +46,7 @@ const context = getActiveWorktreeContext()
 // Readonly<{ directory: string; worktree?: string; branch?: string; linked: boolean }> | undefined
 ```
 
-The same immutable snapshot is available at `globalThis[Symbol.for("omp-worktree-status.active-worktree-context")]` for extensions that cannot import this package. It is initialized from a non-empty session directory, updated only after a Bash call with a reliable `cwd` or leading `cd` succeeds, reinitialized on a session change, and cleared at shutdown. Treat it as display context, not as a substitute for resolving each command's own execution directory.
+The same immutable snapshot is available at `globalThis[Symbol.for("omp-worktree-status.active-worktree-context")]` for extensions that cannot import this package. It is initialized from a non-empty session directory, updated after successful Bash calls using an explicit `cwd`, a reliable leading `cd`, or the session directory, reinitialized on a session change, and cleared at shutdown. Treat it as display context, not as a substitute for resolving each command's own execution directory.
 
 ## Open in editor
 
