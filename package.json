@@ -1,6 +1,6 @@
 {
   "name": "omp-worktree-status",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "OMP status entry for the active tool directory, Git worktree, and branch.",
   "type": "module",
   "license": "MIT",
