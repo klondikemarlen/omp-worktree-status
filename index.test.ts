@@ -61,36 +61,40 @@ describe("inspectWorktree", () => {
 
   test("keeps the worktree label at its root", () => {
     expect(
-      formatStatus({
-        directory: "/code/wrap-issue-438",
-        worktree: "/code/wrap-issue-438",
-        branch: "issue-438/prevent-stale-uat-back-merge",
-        linked: true,
-      }),
+      formatStatus(
+        {
+          directory: "/code/wrap-issue-438",
+          worktree: "/code/wrap-issue-438",
+          branch: "issue-438/prevent-stale-uat-back-merge",
+          linked: true,
+        },
+        "/code/session",
+      ),
     ).toBe(
       "cwd: /code/wrap-issue-438 · wt: /code/wrap-issue-438 · branch: issue-438/prevent-stale-uat-back-merge",
     )
   })
 
-  test("omits context only for the session main worktree root", () => {
+  test("omits primary worktree context regardless of branch", () => {
     const status = {
-      directory: "/code/other",
+      directory: "/code/project/subdir",
       worktree: "/code/project",
       branch: "main",
       linked: false,
     }
 
     expect(formatStatus(status, "/code/project/../project")).toBe("")
-    expect(formatStatus(status, "/code/session")).toBe("cwd: /code/other · wt: /code/project · branch: main")
-    expect(formatStatus({ ...status, branch: "feature" }, "/code/project")).toBe(
-      "cwd: /code/other · wt: /code/project · branch: feature",
+    expect(formatStatus({ ...status, branch: "feature" }, "/code/project")).toBe("")
+    expect(formatStatus(status, "/code/session")).toBe("cwd: /code/project/subdir · wt: /code/project · branch: main")
+    expect(formatStatus({ ...status, linked: true }, "/code/project")).toBe(
+      "cwd: /code/project/subdir · wt: /code/project · branch: main",
     )
   })
 
   test("formats home-relative paths with a slash", () => {
     const home = homedir()
 
-    expect(formatStatus({ directory: home, worktree: home, branch: "feature", linked: false })).toBe(
+    expect(formatStatus({ directory: home, worktree: home, branch: "feature", linked: false }, "/tmp/session")).toBe(
       "cwd: ~ · wt: ~ · branch: feature",
     )
     expect(formatStatus({
@@ -98,13 +102,13 @@ describe("inspectWorktree", () => {
       worktree: `${home}/code/project`,
       branch: "feature",
       linked: false,
-    })).toBe("cwd: ~/code/project · wt: ~/code/project · branch: feature")
+    }, "/tmp/session")).toBe("cwd: ~/code/project · wt: ~/code/project · branch: feature")
     expect(formatStatus({
       directory: `${home}-other/project`,
       worktree: `${home}-other/project`,
       branch: "feature",
       linked: false,
-    })).toBe(`cwd: ${home}-other/project · wt: ${home}-other/project · branch: feature`)
+    }, "/tmp/session")).toBe(`cwd: ${home}-other/project · wt: ${home}-other/project · branch: feature`)
   })
 
   test("links status paths only in Ptyxis", () => {
@@ -173,6 +177,48 @@ describe("worktreeStatusExtension", () => {
     ])
   })
 
+  test("refreshes branch metadata when Bash stays in the active directory", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "omp-worktree-status-"))
+    const handlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
+    const statuses: Array<string | undefined> = []
+    const context = {
+      cwd: join(directory, "session"),
+      sessionManager: { getHeader: () => null },
+      ui: {
+        notify() {},
+        setStatus(_key: string, text: string | undefined) {
+          statuses.push(text)
+        },
+        theme: { fg(_color: string, text: string) { return text } },
+      },
+    } satisfies ExtensionContext
+    const plugin = {
+      on(event: ExtensionEvent, handler: ExtensionHandler) {
+        handlers[event] = handler
+      },
+      registerCommand() {},
+    } satisfies ExtensionApi
+
+    try {
+      execFileSync("git", ["init", "--initial-branch=first", directory], { stdio: "ignore" })
+      worktreeStatusExtension(plugin)
+      const sessionStart = handlers.session_start
+      const toolResult = handlers.tool_result
+      if (!sessionStart || !toolResult) throw new Error("Expected status handlers.")
+      sessionStart({}, context)
+      toolResult({ toolName: "bash", input: { cwd: directory } }, context)
+      execFileSync("git", ["-C", directory, "branch", "-M", "second"], { stdio: "ignore" })
+      toolResult({ toolName: "bash", input: { cwd: directory } }, context)
+
+      expect(statuses).toHaveLength(3)
+      expect(statuses[1]).toContain("branch: first")
+      expect(statuses[2]).toContain("branch: second")
+      expect(getActiveWorktreeContext()).toMatchObject({ directory, branch: "second" })
+    } finally {
+      await rm(directory, { force: true, recursive: true })
+    }
+  })
+
   test("publishes immutable successful Bash context and clears it per session", () => {
     const handlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
     const context = {
@@ -203,15 +249,15 @@ describe("worktreeStatusExtension", () => {
     expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
     toolResult({ toolName: "bash", input: { cwd: "/tmp/failed" }, details: { async: { state: "running" } } }, context)
     expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
-    toolResult({ toolName: "bash", input: { command: "cd /tmp/missing; true" } }, context)
-    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
-
-
 
     toolResult({ toolName: "bash", input: { cwd: "/tmp/worktree" } }, context)
     const active = getActiveWorktreeContext()
     expect(active).toEqual({ directory: "/tmp/worktree", linked: false })
     expect(Object.isFrozen(active)).toBe(true)
+    toolResult({ toolName: "bash", input: { command: "cd /tmp/missing; true" } }, context)
+    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
+    toolResult({ toolName: "bash", input: { command: "git status" } }, context)
+    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
 
     const nextContext = { ...context, cwd: "/tmp/next-session" }
     sessionSwitch({}, nextContext)

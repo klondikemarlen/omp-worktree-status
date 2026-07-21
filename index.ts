@@ -136,7 +136,7 @@ export function formatStatus(
   sessionDirectory = status.directory,
   environment: StatusEnvironment = {},
 ): string {
-  if (status.worktree && status.branch === "main" && resolve(status.worktree) === resolve(sessionDirectory)) return ""
+  if (status.worktree && !status.linked && resolve(status.worktree) === resolve(sessionDirectory)) return ""
   const home = homedir()
   const directory = status.directory === home
     ? "~"
@@ -163,6 +163,7 @@ export function formatStatus(
 
 export default function worktreeStatusExtension(pi: ExtensionApi): void {
   let activeDirectory: string | undefined
+  let activeText: string | undefined
   let activeContext: ActiveWorktreeContext | undefined
   let sessionDirectory: string | undefined
 
@@ -174,15 +175,18 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
   const clear = () => {
     activeDirectory = undefined
     activeContext = undefined
+    activeText = undefined
   }
 
   const update = (ctx: ExtensionContext, directory: string) => {
     const parentSession = ctx.sessionManager.getHeader()?.parentSession
-    if ((typeof parentSession === "string" && parentSession.length > 0) || directory === activeDirectory) return
+    if (typeof parentSession === "string" && parentSession.length > 0) return
     activeDirectory = directory
     const status = inspectWorktree(directory)
     activeContext = Object.freeze({ ...status })
     const text = formatStatus(status, ctx.cwd, process.env)
+    if (text === activeText) return
+    activeText = text
     ctx.ui.setStatus(STATUS_KEY, text ? ctx.ui.theme.fg("dim", text) : undefined)
   }
 
@@ -233,7 +237,7 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
       event.details?.async?.state === "failed" ||
       (event.details?.exitCode !== undefined && event.details.exitCode !== 0)
     ) return
-    const directory = toolDirectory(event.input, ctx.cwd)
+    const directory = toolDirectory(event.input, ctx.cwd) ?? ctx.cwd
     if (directory) update(ctx, directory)
   })
   pi.on("session_shutdown", (_event, ctx) => {
