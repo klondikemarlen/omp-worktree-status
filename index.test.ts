@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process"
-import { chmod, mkdir, mkdtemp, readFile, rm, watch, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, watch, writeFile } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, test } from "bun:test"
@@ -89,6 +89,23 @@ describe("inspectWorktree", () => {
     expect(formatStatus({ ...status, linked: true }, "/code/project")).toBe(
       "cwd: /code/project/subdir · wt: /code/project · branch: main",
     )
+  })
+
+  test("omits primary context when the session directory is a symlink", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "omp-worktree-status-"))
+    const project = join(directory, "project")
+    const sessionDirectory = join(directory, "project-link")
+
+    try {
+      execFileSync("git", ["init", "--initial-branch=main", project], { stdio: "ignore" })
+      await symlink(project, sessionDirectory, "dir")
+
+      const status = inspectWorktree(project)
+      expect(status.linked).toBe(false)
+      expect(formatStatus(status, sessionDirectory)).toBe("")
+    } finally {
+      await rm(directory, { force: true, recursive: true })
+    }
   })
 
   test("formats home-relative paths with a slash", () => {

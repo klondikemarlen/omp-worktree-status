@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process"
-import { readdirSync } from "node:fs"
+import { readdirSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
 import { isAbsolute, join, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -130,13 +130,21 @@ export function inspectWorktree(directory: string, git: GitRunner = runGit): Wor
   return { directory, worktree, branch, linked: Boolean(gitDir && commonDir && gitDir !== commonDir) }
 }
 
+function canonicalPath(path: string): string {
+  try {
+    return realpathSync(path)
+  } catch {
+    return resolve(path)
+  }
+}
+
 
 export function formatStatus(
   status: WorktreeStatus,
   sessionDirectory = status.directory,
   environment: StatusEnvironment = {},
 ): string {
-  if (status.worktree && !status.linked && resolve(status.worktree) === resolve(sessionDirectory)) return ""
+  if (status.worktree && !status.linked && canonicalPath(status.worktree) === canonicalPath(sessionDirectory)) return ""
   const home = homedir()
   const directory = status.directory === home
     ? "~"
