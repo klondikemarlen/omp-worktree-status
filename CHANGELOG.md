@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.3
+
+- Hide redundant primary worktree status after resumed sessions.
+
 ## 0.4.2
 
 - Force GitHub plugin installation during release verification.
