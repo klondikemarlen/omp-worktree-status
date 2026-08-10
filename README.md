@@ -35,6 +35,12 @@ In Ptyxis, `cwd` and `wt` paths are Ctrl-clickable links. Other terminals receiv
 
 OMP's built-in footer remains the session-start directory and branch. Extensions can add hook status, but OMP does not expose an API for replacing built-in footer segments.
 
+## Resuming sessions
+
+The plugin stores the last successful Bash directory selected with an explicit `cwd` or a reliable leading `cd … &&` in OMP's session history. On resume, it immediately restores that directory's worktree status when it still exists and is a Git worktree. Missing or invalid saved directories leave the launch-directory behavior unchanged and show a warning. Child and forked sessions do not reuse their parent's saved status.
+
+OMP 17.2.12 has no public extension API to replace a resumed session's default Bash directory. Restored status therefore does not change an implicit Bash call's execution directory. The minimal core API would set that session-owned default directory directly; launching a child `cd` cannot do so.
+
 ## Extension context
 
 Other OMP extensions can read the active status context without maintaining their own directory state:
