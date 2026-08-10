@@ -1,5 +1,10 @@
 # Changelog
 
+
+## 0.4.4
+
+- Restore a saved linked-worktree status when an OMP session resumes.
+
 ## 0.4.3
 
 - Hide redundant primary worktree status after resumed sessions.
