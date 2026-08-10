@@ -1,6 +1,5 @@
 # Changelog
 
-
 ## 0.4.4
 
 - Restore a saved linked-worktree status when an OMP session resumes.
