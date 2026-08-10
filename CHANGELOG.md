@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.5
+
+- Run implicit Bash calls in the restored worktree after session resume.
+
 ## 0.4.4
 
 - Restore a saved linked-worktree status when an OMP session resumes.
