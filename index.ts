@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process"
-import { readdirSync, realpathSync } from "node:fs"
+import { existsSync, readdirSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
 import { isAbsolute, join, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -15,6 +15,8 @@ export type ExtensionContext = {
   cwd: string
   sessionManager: {
     getHeader(): { parentSession?: unknown } | null
+    getEntries?(): unknown[]
+    appendCustomEntry?(customType: string, data: Record<string, unknown>): string
   }
   ui: {
     notify(message: string, type?: "info" | "warning" | "error"): void
@@ -138,6 +140,31 @@ function canonicalPath(path: string): string {
   }
 }
 
+function savedDirectory(entry: unknown): string | undefined {
+  if (
+    !entry ||
+    typeof entry !== "object" ||
+    !("type" in entry) ||
+    !("customType" in entry) ||
+    !("data" in entry) ||
+    entry.type !== "custom" ||
+    entry.customType !== STATUS_KEY ||
+    !entry.data ||
+    typeof entry.data !== "object" ||
+    !("directory" in entry.data)
+  ) return undefined
+  const { directory } = entry.data
+  return typeof directory === "string" && directory.trim() ? directory : undefined
+}
+
+function latestSavedDirectory(entries: readonly unknown[]): string | undefined {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const directory = savedDirectory(entries[index])
+    if (directory) return directory
+  }
+  return undefined
+}
+
 
 export function formatStatus(
   status: WorktreeStatus,
@@ -186,11 +213,10 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
     activeText = undefined
   }
 
-  const update = (ctx: ExtensionContext, directory: string) => {
+  const update = (ctx: ExtensionContext, directory: string, status = inspectWorktree(directory)) => {
     const parentSession = ctx.sessionManager.getHeader()?.parentSession
     if (typeof parentSession === "string" && parentSession.length > 0) return
     activeDirectory = directory
-    const status = inspectWorktree(directory)
     activeContext = Object.freeze({ ...status })
     const text = formatStatus(status, ctx.cwd, process.env)
     if (text === activeText) return
@@ -205,6 +231,15 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
     if (!sessionDirectory || (typeof parentSession === "string" && parentSession.length > 0)) {
       ctx.ui.setStatus(STATUS_KEY, undefined)
       return
+    }
+    const restoredDirectory = latestSavedDirectory(ctx.sessionManager.getEntries?.() ?? [])
+    if (restoredDirectory) {
+      const status = existsSync(restoredDirectory) && inspectWorktree(restoredDirectory)
+      if (status && status.worktree) {
+        update(ctx, restoredDirectory, status)
+        return
+      }
+      ctx.ui.notify("Saved worktree is unavailable; using the session directory.", "warning")
     }
     update(ctx, sessionDirectory)
   }
@@ -245,8 +280,11 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
       event.details?.async?.state === "failed" ||
       (event.details?.exitCode !== undefined && event.details.exitCode !== 0)
     ) return
-    const directory = toolDirectory(event.input, ctx.cwd) ?? ctx.cwd
-    if (directory) update(ctx, directory)
+    const selectedDirectory = toolDirectory(event.input, ctx.cwd)
+    const directory = selectedDirectory ?? ctx.cwd
+    if (!directory) return
+    update(ctx, directory)
+    if (selectedDirectory) ctx.sessionManager.appendCustomEntry?.(STATUS_KEY, { directory: selectedDirectory })
   })
   pi.on("session_shutdown", (_event, ctx) => {
     sessionDirectory = undefined

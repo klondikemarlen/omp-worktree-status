@@ -285,6 +285,109 @@ describe("worktreeStatusExtension", () => {
     sessionStart({}, { ...nextContext, cwd: " " })
     expect(getActiveWorktreeContext()).toBeUndefined()
   })
+  test("restores a saved linked worktree when the session resumes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "omp-worktree-status-"))
+    const linked = join(root, "resumed")
+    const entries: unknown[] = []
+    const savedStatuses: Array<string | undefined> = []
+    const resumedStatuses: Array<string | undefined> = []
+    const notifications: string[] = []
+    const sessionManager = {
+      getHeader: () => null,
+      getEntries: () => entries,
+      appendCustomEntry(customType: string, data: Record<string, unknown>) {
+        entries.push({ type: "custom", customType, data })
+        return String(entries.length)
+      },
+    }
+    const createPlugin = (handlers: Partial<Record<ExtensionEvent, ExtensionHandler>>) => ({
+      on(event: ExtensionEvent, handler: ExtensionHandler) {
+        handlers[event] = handler
+      },
+      registerCommand() {},
+    }) satisfies ExtensionApi
+    const context = (statuses: Array<string | undefined>) => ({
+      cwd: root,
+      sessionManager,
+      ui: {
+        notify(message: string) { notifications.push(message) },
+        setStatus(_key: string, text: string | undefined) { statuses.push(text) },
+        theme: { fg(_color: string, text: string) { return text } },
+      },
+    }) satisfies ExtensionContext
+
+    try {
+      execFileSync("git", ["init", "--initial-branch=main", root], { stdio: "ignore" })
+      execFileSync("git", ["-C", root, "config", "user.email", "test@example.com"], { stdio: "ignore" })
+      execFileSync("git", ["-C", root, "config", "user.name", "Test"], { stdio: "ignore" })
+      execFileSync("git", ["-C", root, "commit", "--allow-empty", "-m", "Initial"], { stdio: "ignore" })
+      execFileSync("git", ["-C", root, "worktree", "add", "-b", "resumed", linked], { stdio: "ignore" })
+
+      const initialHandlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
+      worktreeStatusExtension(createPlugin(initialHandlers))
+      const initial = context(savedStatuses)
+      initialHandlers.session_start?.({}, initial)
+      initialHandlers.tool_result?.({ toolName: "bash", input: { cwd: linked } }, initial)
+      initialHandlers.tool_result?.({ toolName: "bash", input: { cwd: root }, isError: true }, initial)
+      initialHandlers.tool_result?.({ toolName: "bash", input: { cwd: root }, details: { exitCode: 1 } }, initial)
+      initialHandlers.tool_result?.({ toolName: "bash", input: { cwd: root }, details: { async: { state: "running" } } }, initial)
+      initialHandlers.tool_result?.({ toolName: "bash", input: { cwd: root }, details: { async: { state: "failed" } } }, initial)
+      initialHandlers.session_shutdown?.({}, initial)
+      expect(entries).toHaveLength(1)
+
+      const resumedHandlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
+      worktreeStatusExtension(createPlugin(resumedHandlers))
+      resumedHandlers.session_start?.({}, context(resumedStatuses))
+      expect(getActiveWorktreeContext()).toEqual({
+        directory: linked,
+        worktree: linked,
+        branch: "resumed",
+        linked: true,
+      })
+      expect(resumedStatuses.at(-1)).toBe(
+        formatStatus({ directory: linked, worktree: linked, branch: "resumed", linked: true }, root, process.env),
+      )
+
+      const childHandlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
+      worktreeStatusExtension(createPlugin(childHandlers))
+      childHandlers.session_start?.({}, {
+        ...context([]),
+        sessionManager: { ...sessionManager, getHeader: () => ({ parentSession: "parent-session" }) },
+      })
+      expect(getActiveWorktreeContext()).toBeUndefined()
+      expect(notifications).toEqual([])
+    } finally {
+      await rm(root, { force: true, recursive: true })
+    }
+  })
+
+  test("warns and falls back when a saved worktree is unavailable", () => {
+    const handlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
+    const notifications: string[] = []
+    const context = {
+      cwd: "/tmp/session",
+      sessionManager: {
+        getHeader: () => null,
+        getEntries: () => [{ type: "custom", customType: "worktree-status", data: { directory: "/tmp/missing" } }],
+      },
+      ui: {
+        notify(message: string) { notifications.push(message) },
+        setStatus() {},
+        theme: { fg(_color: string, text: string) { return text } },
+      },
+    } satisfies ExtensionContext
+    const plugin = {
+      on(event: ExtensionEvent, handler: ExtensionHandler) {
+        handlers[event] = handler
+      },
+      registerCommand() {},
+    } satisfies ExtensionApi
+
+    worktreeStatusExtension(plugin)
+    handlers.session_start?.({}, context)
+    expect(getActiveWorktreeContext()).toEqual({ directory: "/tmp/session", linked: false })
+    expect(notifications).toEqual(["Saved worktree is unavailable; using the session directory."])
+  })
 })
 
 describe("open-in-editor", () => {
