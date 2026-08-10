@@ -351,6 +351,7 @@ describe("worktreeStatusExtension", () => {
       expect(resumedHandlers.tool_call?.({ toolCallId: "implicit-bash", toolName: "bash", input: { command: "pwd" } }, resumed)).toEqual({
         input: { command: "pwd", cwd: linked },
       })
+      expect(resumedHandlers.tool_call?.({ toolCallId: "explicit-cwd", toolName: "bash", input: { command: "pwd", cwd: root } }, resumed)).toBeUndefined()
       resumedHandlers.tool_result?.({ toolCallId: "implicit-bash", toolName: "bash", input: { command: "pwd", cwd: linked } }, resumed)
       expect(entries).toHaveLength(1)
 
