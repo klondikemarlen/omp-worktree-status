@@ -26,7 +26,15 @@ export type ExtensionContext = {
 }
 
 export type ExtensionEvent = "session_start" | "session_switch" | "session_shutdown" | "tool_call" | "tool_result"
-export type ExtensionHandler = (event: { toolName?: string; input?: ToolInput; details?: { exitCode?: number; async?: { state?: "running" | "completed" | "failed" } }; isError?: boolean }, ctx: ExtensionContext) => void
+type ExtensionEventPayload = {
+  toolCallId?: string
+  toolName?: string
+  input?: ToolInput
+  details?: { exitCode?: number; async?: { state?: "running" | "completed" | "failed" } }
+  isError?: boolean
+}
+
+export type ExtensionHandler = (event: ExtensionEventPayload, ctx: ExtensionContext) => { input: ToolInput } | void
 export type CommandHandler = (args: string, ctx: ExtensionContext) => Promise<void>
 
 export type ExtensionApi = {
@@ -201,6 +209,7 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
   let activeText: string | undefined
   let activeContext: ActiveWorktreeContext | undefined
   let sessionDirectory: string | undefined
+  const redirectedCalls = new Map<string, { input: ToolInput; directory: string }>()
 
   Object.defineProperty(globalThis, ACTIVE_WORKTREE_CONTEXT, {
     configurable: true,
@@ -270,8 +279,23 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
 
   pi.on("session_start", (_event, ctx) => reset(ctx))
   pi.on("session_switch", (_event, ctx) => reset(ctx))
+  pi.on("tool_call", (event, ctx) => {
+    ensureSession(ctx)
+    if (
+      event.toolName !== "bash" ||
+      !event.toolCallId ||
+      !event.input ||
+      (typeof event.input.cwd === "string" && event.input.cwd.trim()) ||
+      !activeDirectory ||
+      activeDirectory === ctx.cwd
+    ) return
+    redirectedCalls.set(event.toolCallId, { input: event.input, directory: activeDirectory })
+    return { input: { ...event.input, cwd: activeDirectory } }
+  })
   pi.on("tool_result", (event, ctx) => {
     ensureSession(ctx)
+    const redirected = event.toolCallId ? redirectedCalls.get(event.toolCallId) : undefined
+    if (event.toolCallId) redirectedCalls.delete(event.toolCallId)
     if (
       event.toolName !== "bash" ||
       !event.input ||
@@ -280,8 +304,8 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
       event.details?.async?.state === "failed" ||
       (event.details?.exitCode !== undefined && event.details.exitCode !== 0)
     ) return
-    const selectedDirectory = toolDirectory(event.input, ctx.cwd)
-    const directory = selectedDirectory ?? ctx.cwd
+    const selectedDirectory = toolDirectory(redirected?.input ?? event.input, redirected?.directory ?? ctx.cwd)
+    const directory = selectedDirectory ?? redirected?.directory ?? ctx.cwd
     if (!directory) return
     update(ctx, directory)
     if (selectedDirectory) ctx.sessionManager.appendCustomEntry?.(STATUS_KEY, { directory: selectedDirectory })
@@ -290,5 +314,6 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
     sessionDirectory = undefined
     clear()
     ctx.ui.setStatus(STATUS_KEY, undefined)
+    redirectedCalls.clear()
   })
 }
