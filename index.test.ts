@@ -337,7 +337,8 @@ describe("worktreeStatusExtension", () => {
 
       const resumedHandlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
       worktreeStatusExtension(createPlugin(resumedHandlers))
-      resumedHandlers.session_start?.({}, context(resumedStatuses))
+      const resumed = context(resumedStatuses)
+      resumedHandlers.session_start?.({}, resumed)
       expect(getActiveWorktreeContext()).toEqual({
         directory: linked,
         worktree: linked,
@@ -347,6 +348,12 @@ describe("worktreeStatusExtension", () => {
       expect(resumedStatuses.at(-1)).toBe(
         formatStatus({ directory: linked, worktree: linked, branch: "resumed", linked: true }, root, process.env),
       )
+      expect(resumedHandlers.tool_call?.({ toolCallId: "implicit-bash", toolName: "bash", input: { command: "pwd" } }, resumed)).toEqual({
+        input: { command: "pwd", cwd: linked },
+      })
+      expect(resumedHandlers.tool_call?.({ toolCallId: "explicit-cwd", toolName: "bash", input: { command: "pwd", cwd: root } }, resumed)).toBeUndefined()
+      resumedHandlers.tool_result?.({ toolCallId: "implicit-bash", toolName: "bash", input: { command: "pwd", cwd: linked } }, resumed)
+      expect(entries).toHaveLength(1)
 
       const childHandlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
       worktreeStatusExtension(createPlugin(childHandlers))
