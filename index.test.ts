@@ -354,6 +354,20 @@ describe("worktreeStatusExtension", () => {
       expect(resumedHandlers.tool_call?.({ toolCallId: "explicit-cwd", toolName: "bash", input: { command: "pwd", cwd: root } }, resumed)).toBeUndefined()
       resumedHandlers.tool_result?.({ toolCallId: "implicit-bash", toolName: "bash", input: { command: "pwd", cwd: linked } }, resumed)
       expect(entries).toHaveLength(1)
+      const staleHandlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
+      const staleStatuses: Array<string | undefined> = []
+      worktreeStatusExtension(createPlugin(staleHandlers))
+      const stale = {
+        ...context(staleStatuses),
+        cwd: join(root, "missing"),
+        sessionManager: { ...sessionManager, getEntries: () => [] },
+      } satisfies ExtensionContext
+      staleHandlers.session_start?.({}, stale)
+      staleHandlers.tool_result?.({ toolName: "bash", input: { cwd: linked } }, stale)
+      expect(getActiveWorktreeContext()).toMatchObject({ directory: linked, worktree: linked, branch: "resumed", linked: true })
+      expect(staleStatuses.at(-1)).toBe(
+        formatStatus({ directory: linked, worktree: linked, branch: "resumed", linked: true }, stale.cwd, process.env),
+      )
 
       const childHandlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
       worktreeStatusExtension(createPlugin(childHandlers))
