@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.7
+
+- Open the active worktree in a configured merge editor.
+
 ## 0.4.6
 
 - Cover stale-session linked-worktree status refreshes.
