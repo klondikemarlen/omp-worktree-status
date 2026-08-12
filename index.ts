@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from "node:child_process"
-import { existsSync, readdirSync, realpathSync } from "node:fs"
+import { accessSync, constants, existsSync, readdirSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
-import { isAbsolute, join, relative, resolve } from "node:path"
+import { delimiter, isAbsolute, join, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 
 const STATUS_KEY = "worktree-status"
@@ -98,6 +98,43 @@ export function getEditorCommand(
 ): string | undefined {
   return environment.VISUAL?.trim() || environment.EDITOR?.trim() || (platform === "win32" ? "notepad" : undefined)
 }
+export type MergeEditorEnvironment = { MERGE_EDITOR?: string; PATH?: string }
+
+function commandArguments(command: string): string[] {
+  return command.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g)?.map((argument) => argument.replace(/^["']|["']$/g, "")) ?? []
+}
+
+function commandOnPath(command: string, environment: MergeEditorEnvironment): boolean {
+  const [executable] = commandArguments(command)
+  if (!executable) return false
+  if (executable.includes("/") || executable.includes("\\")) {
+    try {
+      accessSync(executable, constants.X_OK)
+      return true
+    } catch {
+      return false
+    }
+  }
+  return (environment.PATH ?? process.env.PATH ?? "").split(delimiter).some((directory) => {
+    try {
+      accessSync(join(directory, executable), constants.X_OK)
+      return true
+    } catch {
+      return false
+    }
+  })
+}
+
+export function getMergeEditorCommand(
+  directory: string,
+  environment: MergeEditorEnvironment = process.env,
+  git: GitRunner = runGit,
+): string | undefined {
+  const configured = environment.MERGE_EDITOR?.trim()
+  if (configured) return configured
+  const mergeTool = git(directory, ["config", "--get", "merge.tool"])
+  return mergeTool && commandOnPath(mergeTool, environment) ? mergeTool : undefined
+}
 
 
 function workspaceFile(directory: string): string | undefined {
@@ -119,12 +156,23 @@ export function openInEditor(
   onError?: (error: Error) => void,
   workspaceDirectory = directory,
 ): void {
-  const command = editorCommand.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g)?.map((argument) => argument.replace(/^["']|["']$/g, "")) ?? []
-  const [editor, ...args] = command
+  const [editor, ...args] = commandArguments(editorCommand)
   if (!editor) throw new Error("Editor command is empty.")
   const codeEditor = /(?:^|[/\\])(?:code(?:-insiders)?|codium|cursor|windsurf|devin(?:-desktop)?)(?:\.exe)?$/i.test(editor)
   const target = codeEditor ? workspaceFile(workspaceDirectory) ?? directory : directory
   const child = spawn(editor, [...args, ...(codeEditor ? ["--new-window"] : []), target], { detached: true, stdio: "ignore", windowsHide: true })
+  if (onError) child.once("error", onError)
+  child.unref()
+}
+
+export function openInMergeEditor(
+  mergeEditorCommand: string,
+  directory: string,
+  onError?: (error: Error) => void,
+): void {
+  const [editor, ...args] = commandArguments(mergeEditorCommand)
+  if (!editor) throw new Error("Merge editor command is empty.")
+  const child = spawn(editor, [...args, directory], { detached: true, stdio: "ignore", windowsHide: true })
   if (onError) child.once("error", onError)
   child.unref()
 }
@@ -273,6 +321,26 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
         }, worktree)
       } catch {
         ctx.ui.notify(`Could not start ${editor}. Verify $VISUAL or $EDITOR, then try /open-in-editor.`, "error")
+      }
+    },
+  })
+
+  pi.registerCommand("open-in-merge-editor", {
+    description: "Open the active worktree in $MERGE_EDITOR or Git merge.tool.",
+    handler: async (_args, ctx) => {
+      const directory = activeDirectory ?? ctx.cwd
+      const editor = getMergeEditorCommand(directory)
+      if (!editor) {
+        ctx.ui.notify("No merge editor configured. Set $MERGE_EDITOR or Git merge.tool, then run /open-in-merge-editor.", "error")
+        return
+      }
+      const worktree = inspectWorktree(directory).worktree ?? directory
+      try {
+        openInMergeEditor(editor, worktree, () => {
+          ctx.ui.notify(`Could not start ${editor}. Verify $MERGE_EDITOR or Git merge.tool, then try /open-in-merge-editor.`, "error")
+        })
+      } catch {
+        ctx.ui.notify(`Could not start ${editor}. Verify $MERGE_EDITOR or Git merge.tool, then try /open-in-merge-editor.`, "error")
       }
     },
   })

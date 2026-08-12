@@ -12,8 +12,10 @@ import worktreeStatusExtension, {
   formatStatus,
   getActiveWorktreeContext,
   getEditorCommand,
+  getMergeEditorCommand,
   inspectWorktree,
   openInEditor,
+  openInMergeEditor,
   toolDirectory,
 } from "./index.ts"
 
@@ -34,6 +36,26 @@ describe("getEditorCommand", () => {
     expect(getEditorCommand({ EDITOR: "vim" })).toBe("vim")
     expect(getEditorCommand({}, "win32")).toBe("notepad")
     expect(getEditorCommand({})).toBeUndefined()
+  })
+})
+
+describe("getMergeEditorCommand", () => {
+  test("prefers MERGE_EDITOR over Git merge.tool", () => {
+    expect(getMergeEditorCommand("/tmp/worktree", { MERGE_EDITOR: "smerge --new-window" }, () => "ignored")).toBe("smerge --new-window")
+  })
+
+  test("uses an executable configured Git merge.tool", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "omp-worktree-status-"))
+    const mergeEditor = join(directory, "smerge")
+
+    try {
+      await writeFile(mergeEditor, "")
+      await chmod(mergeEditor, 0o755)
+      expect(getMergeEditorCommand("/tmp/worktree", { PATH: directory }, () => "smerge")).toBe("smerge")
+      expect(getMergeEditorCommand("/tmp/worktree", { PATH: directory }, () => "missing-merge-editor")).toBeUndefined()
+    } finally {
+      await rm(directory, { force: true, recursive: true })
+    }
   })
 })
 
@@ -552,6 +574,7 @@ describe("open-in-editor", () => {
   test("parses quoted editor paths and arguments", async () => {
     const temporaryDirectory = await mkdtemp(join(tmpdir(), "omp-worktree-status-"))
     const editor = join(temporaryDirectory, "editor with spaces")
+
     const openedArguments = join(temporaryDirectory, "opened-arguments")
     const previousOutput = process.env.OMP_EDITOR_OUTPUT
 
@@ -570,6 +593,85 @@ describe("open-in-editor", () => {
       }
       expect(await readFile(openedArguments, "utf8")).toBe("--wait for editor\n/tmp/worktree\n")
     } finally {
+      if (previousOutput === undefined) delete process.env.OMP_EDITOR_OUTPUT
+      else process.env.OMP_EDITOR_OUTPUT = previousOutput
+      await rm(temporaryDirectory, { force: true, recursive: true })
+    }
+  })
+  test("opens a worktree in a configured merge editor", async () => {
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), "omp-worktree-status-"))
+    const mergeEditor = join(temporaryDirectory, "merge editor")
+    const openedPath = join(temporaryDirectory, "opened-path")
+    const previousOutput = process.env.OMP_EDITOR_OUTPUT
+
+    await writeFile(mergeEditor, '#!/bin/sh\nprintf "%s\\n" "$@" > "$OMP_EDITOR_OUTPUT"\n')
+    await chmod(mergeEditor, 0o755)
+    process.env.OMP_EDITOR_OUTPUT = openedPath
+
+    try {
+      const watcher = watch(temporaryDirectory)[Symbol.asyncIterator]()
+      try {
+        const opened = watcher.next()
+        openInMergeEditor(`"${mergeEditor}" "--background"`, "/tmp/worktree")
+        await opened
+      } finally {
+        await watcher.return?.()
+      }
+      expect(await readFile(openedPath, "utf8")).toBe("--background\n/tmp/worktree\n")
+    } finally {
+      if (previousOutput === undefined) delete process.env.OMP_EDITOR_OUTPUT
+      else process.env.OMP_EDITOR_OUTPUT = previousOutput
+      await rm(temporaryDirectory, { force: true, recursive: true })
+    }
+  })
+
+  test("opens the active worktree in MERGE_EDITOR", async () => {
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), "omp-worktree-status-"))
+    const nestedDirectory = join(temporaryDirectory, "nested")
+    const mergeEditor = join(temporaryDirectory, "merge-editor")
+    const openedPath = join(temporaryDirectory, "opened-path")
+    const previousMergeEditor = process.env.MERGE_EDITOR
+    const previousOutput = process.env.OMP_EDITOR_OUTPUT
+    let command: CommandHandler | undefined
+
+    await mkdir(nestedDirectory)
+    execFileSync("git", ["init", temporaryDirectory], { stdio: "ignore" })
+    await writeFile(mergeEditor, '#!/bin/sh\nprintf "%s" "$1" > "$OMP_EDITOR_OUTPUT"\n')
+    await chmod(mergeEditor, 0o755)
+    process.env.MERGE_EDITOR = mergeEditor
+    process.env.OMP_EDITOR_OUTPUT = openedPath
+
+    try {
+      const handlers: Partial<Record<ExtensionEvent, ExtensionHandler>> = {}
+      const context = {
+        cwd: "/tmp/session",
+        sessionManager: { getHeader: () => null },
+        ui: { notify() {}, setStatus() {}, theme: { fg(_color: string, text: string) { return text } } },
+      } satisfies ExtensionContext
+      const plugin = {
+        on(event: ExtensionEvent, handler: ExtensionHandler) {
+          handlers[event] = handler
+        },
+        registerCommand(name: string, options: { handler: CommandHandler }) {
+          if (name === "open-in-merge-editor") command = options.handler
+        },
+      } satisfies ExtensionApi
+
+      worktreeStatusExtension(plugin)
+      handlers.tool_result?.({ toolName: "bash", input: { cwd: nestedDirectory } }, context)
+      if (!command) throw new Error("Expected /open-in-merge-editor command.")
+      const watcher = watch(temporaryDirectory)[Symbol.asyncIterator]()
+      try {
+        const opened = watcher.next()
+        await command("", context)
+        await opened
+      } finally {
+        await watcher.return?.()
+      }
+      expect(await readFile(openedPath, "utf8")).toBe(temporaryDirectory)
+    } finally {
+      if (previousMergeEditor === undefined) delete process.env.MERGE_EDITOR
+      else process.env.MERGE_EDITOR = previousMergeEditor
       if (previousOutput === undefined) delete process.env.OMP_EDITOR_OUTPUT
       else process.env.OMP_EDITOR_OUTPUT = previousOutput
       await rm(temporaryDirectory, { force: true, recursive: true })
@@ -610,6 +712,43 @@ describe("open-in-editor", () => {
       else process.env.VISUAL = previousVisual
       if (previousEditor === undefined) delete process.env.EDITOR
       else process.env.EDITOR = previousEditor
+    }
+  })
+
+  test("reports a missing merge editor configuration", async () => {
+    const previousMergeEditor = process.env.MERGE_EDITOR
+    const previousPath = process.env.PATH
+    const notifications: string[] = []
+    let command: CommandHandler | undefined
+    delete process.env.MERGE_EDITOR
+    process.env.PATH = ""
+
+    try {
+      const context = {
+        cwd: "/tmp/session",
+        sessionManager: { getHeader: () => null },
+        ui: {
+          notify(message: string) { notifications.push(message) },
+          setStatus() {},
+          theme: { fg(_color: string, text: string) { return text } },
+        },
+      } satisfies ExtensionContext
+      const plugin = {
+        on() {},
+        registerCommand(name: string, options: { handler: CommandHandler }) {
+          if (name === "open-in-merge-editor") command = options.handler
+        },
+      } satisfies ExtensionApi
+
+      worktreeStatusExtension(plugin)
+      if (!command) throw new Error("Expected /open-in-merge-editor command.")
+      await command("", context)
+      expect(notifications).toEqual(["No merge editor configured. Set $MERGE_EDITOR or Git merge.tool, then run /open-in-merge-editor."])
+    } finally {
+      if (previousMergeEditor === undefined) delete process.env.MERGE_EDITOR
+      else process.env.MERGE_EDITOR = previousMergeEditor
+      if (previousPath === undefined) delete process.env.PATH
+      else process.env.PATH = previousPath
     }
   })
 })
