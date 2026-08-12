@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.6
+
+- Cover stale-session linked-worktree status refreshes.
+
 ## 0.4.5
 
 - Run implicit Bash calls in the restored worktree after session resume.
