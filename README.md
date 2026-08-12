@@ -60,6 +60,22 @@ VS Code-compatible command names (`code`, `code-insiders`, `codium`, `cursor`, `
 
 Quote editor paths and configured arguments that contain spaces.
 
+## Open in merge editor
+
+Run `/open-in-merge-editor` to open the active worktree root in a repository-oriented diff or merge editor. Set `$MERGE_EDITOR` to an editor command, including quoted arguments:
+
+```sh
+export MERGE_EDITOR='smerge --new-window'
+```
+
+Without `$MERGE_EDITOR`, the command uses an executable named by Git's `merge.tool`, so a normal Sublime Merge configuration works:
+
+```sh
+git config --global merge.tool smerge
+```
+
+It does not fall back to `$VISUAL` or `$EDITOR`; configure a merge editor explicitly.
+
 ## Development
 
 ```sh
