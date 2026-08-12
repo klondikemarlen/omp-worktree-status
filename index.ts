@@ -98,6 +98,7 @@ export function getEditorCommand(
 ): string | undefined {
   return environment.VISUAL?.trim() || environment.EDITOR?.trim() || (platform === "win32" ? "notepad" : undefined)
 }
+
 export type MergeEditorEnvironment = { MERGE_EDITOR?: string; PATH?: string }
 
 function commandArguments(command: string): string[] {

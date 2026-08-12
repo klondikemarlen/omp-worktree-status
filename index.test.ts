@@ -598,6 +598,7 @@ describe("open-in-editor", () => {
       await rm(temporaryDirectory, { force: true, recursive: true })
     }
   })
+
   test("opens a worktree in a configured merge editor", async () => {
     const temporaryDirectory = await mkdtemp(join(tmpdir(), "omp-worktree-status-"))
     const mergeEditor = join(temporaryDirectory, "merge editor")
