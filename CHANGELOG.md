@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.8
+
+- Combine duplicate command-directory and worktree-root status paths.
+
 ## 0.4.7
 
 - Open the active worktree in a configured merge editor.
