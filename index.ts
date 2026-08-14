@@ -237,7 +237,7 @@ export function formatStatus(
     ? `\u001B]8;;${pathToFileURL(resolve(status.directory)).href}\u001B\\${directory}\u001B]8;;\u001B\\`
     : directory
   const details = [`cwd: ${directoryText}`]
-  if (status.worktree) {
+  if (status.worktree && canonicalPath(status.directory) !== canonicalPath(status.worktree)) {
     const worktree = status.worktree === home
       ? "~"
       : status.worktree.startsWith(`${home}/`) ? `~/${relative(home, status.worktree)}` : status.worktree
@@ -245,6 +245,8 @@ export function formatStatus(
       ? `\u001B]8;;${pathToFileURL(resolve(status.worktree)).href}\u001B\\${worktree}\u001B]8;;\u001B\\`
       : worktree
     details.push(`wt: ${worktreeText}`)
+  } else if (status.worktree) {
+    details[0] = `cwd/wt: ${directoryText}`
   }
   if (status.branch) details.push(`branch: ${status.branch}`)
   else if (status.worktree) details.push("branch: detached")

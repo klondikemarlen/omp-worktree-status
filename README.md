@@ -20,14 +20,19 @@ The status starts at the session directory. On each successful Bash call, it use
 cd ~/code/icefoganalytics/wrap-issue-438 && git status --short --branch
 ```
 
-A linked worktree displays its actual command directory, worktree root, and checked-out branch:
+A linked worktree displays the command directory, worktree root, and checked-out branch when the command runs below the root:
 
 ```text
 cwd: ~/code/icefoganalytics/wrap-issue-438/api · wt: ~/code/icefoganalytics/wrap-issue-438 · branch: issue-438/prevent-main-to-uat-releases-from-using-a-stale-uat-back-merge
 ```
 
+At the worktree root, it combines the duplicate path:
 
-When the selected primary worktree root matches OMP's session directory, the plugin omits its redundant status entry regardless of branch. Linked worktrees and other worktrees retain the full context above.
+```text
+cwd/wt: ~/code/icefoganalytics/wrap-issue-438 · branch: issue-438/prevent-main-to-uat-releases-from-using-a-stale-uat-back-merge
+```
+
+When the selected primary worktree root matches OMP's session directory, the plugin omits its redundant status entry regardless of branch. Linked worktrees and other worktrees retain the context above.
 
 Paths inside the home directory use the conventional `~/` prefix.
 
