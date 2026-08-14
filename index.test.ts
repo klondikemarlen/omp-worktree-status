@@ -81,7 +81,7 @@ describe("inspectWorktree", () => {
     )
   })
 
-  test("keeps the worktree label at its root", () => {
+  test("combines cwd and worktree labels at the root", () => {
     expect(
       formatStatus(
         {
@@ -93,7 +93,7 @@ describe("inspectWorktree", () => {
         "/code/session",
       ),
     ).toBe(
-      "cwd: /code/wrap-issue-438 · wt: /code/wrap-issue-438 · branch: issue-438/prevent-stale-uat-back-merge",
+      "cwd/wt: /code/wrap-issue-438 · branch: issue-438/prevent-stale-uat-back-merge",
     )
   })
 
@@ -134,20 +134,20 @@ describe("inspectWorktree", () => {
     const home = homedir()
 
     expect(formatStatus({ directory: home, worktree: home, branch: "feature", linked: false }, "/tmp/session")).toBe(
-      "cwd: ~ · wt: ~ · branch: feature",
+      "cwd/wt: ~ · branch: feature",
     )
     expect(formatStatus({
       directory: `${home}/code/project`,
       worktree: `${home}/code/project`,
       branch: "feature",
       linked: false,
-    }, "/tmp/session")).toBe("cwd: ~/code/project · wt: ~/code/project · branch: feature")
+    }, "/tmp/session")).toBe("cwd/wt: ~/code/project · branch: feature")
     expect(formatStatus({
       directory: `${home}-other/project`,
       worktree: `${home}-other/project`,
       branch: "feature",
       linked: false,
-    }, "/tmp/session")).toBe(`cwd: ${home}-other/project · wt: ${home}-other/project · branch: feature`)
+    }, "/tmp/session")).toBe(`cwd/wt: ${home}-other/project · branch: feature`)
   })
 
   test("links status paths only in Ptyxis", () => {
@@ -167,6 +167,10 @@ describe("inspectWorktree", () => {
       "cwd: /tmp/project with spaces · wt: /tmp/worktree#one · branch: feature",
     )
     expect(formatStatus(status, status.directory, {})).not.toContain(escape)
+
+    expect(formatStatus({ ...status, directory: status.worktree }, "/tmp/session", { PTYXIS_VERSION: "48.0" })).toBe(
+      `cwd/wt: ${escape}]8;;file:///tmp/worktree%23one${escape}\\${status.worktree}${escape}]8;;${escape}\\ · branch: feature`,
+    )
   })
 })
 
