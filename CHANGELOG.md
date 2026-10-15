@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.10
+
+- Export a named extension initializer while preserving OMP's default entrypoint.
+- Make guard clauses, status branches, and editor-launch calls easier to review without changing behavior.
+
 ## 0.4.9
 
 - Render worktree directory and branch context at the active theme's normal text brightness.
