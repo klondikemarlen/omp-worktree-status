@@ -38,6 +38,8 @@ Paths inside the home directory use the conventional `~/` prefix.
 
 In Ptyxis, `cwd` and `wt` paths are Ctrl-clickable links. Other terminals receive the same plain-text status.
 
+The worktree line uses the active theme's normal text foreground for readable directory and branch context, rather than dim footer styling.
+
 OMP's built-in footer remains the session-start directory and branch. Extensions can add hook status, but OMP does not expose an API for replacing built-in footer segments.
 
 ## Resuming sessions
@@ -86,3 +88,5 @@ It does not fall back to `$VISUAL` or `$EDITOR`; configure a merge editor explic
 ```sh
 bun test
 ```
+
+See the [project knowledge guide](/docs/README.md) for architecture, terminal QA scenarios, and the release/install procedure.
