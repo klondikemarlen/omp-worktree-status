@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.9
+
+- Render worktree directory and branch context at the active theme's normal text brightness.
+- Document extension invariants, terminal QA scenarios, and the GitHub release/install procedure.
+
 ## 0.4.8
 
 - Combine duplicate command-directory and worktree-root status paths.
