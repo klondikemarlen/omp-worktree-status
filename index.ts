@@ -281,7 +281,7 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
     const text = formatStatus(status, ctx.cwd, process.env)
     if (text === activeText) return
     activeText = text
-    ctx.ui.setStatus(STATUS_KEY, text ? ctx.ui.theme.fg("dim", text) : undefined)
+    ctx.ui.setStatus(STATUS_KEY, text ? ctx.ui.theme.fg("text", text) : undefined)
   }
 
   const reset = (ctx: ExtensionContext) => {
