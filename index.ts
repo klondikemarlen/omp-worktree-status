@@ -7,7 +7,6 @@ import { pathToFileURL } from "node:url"
 const STATUS_KEY = "worktree-status"
 export const ACTIVE_WORKTREE_CONTEXT = Symbol.for("omp-worktree-status.active-worktree-context")
 
-
 type ToolInput = Record<string, unknown>
 type GitRunner = (cwd: string, args: string[]) => string | undefined
 
@@ -57,17 +56,25 @@ export function getActiveWorktreeContext(): ActiveWorktreeContext | undefined {
 
 type StatusEnvironment = { PTYXIS_VERSION?: string }
 
-
 function unquote(directory: string): string | undefined {
-  if (directory.startsWith("'") && directory.endsWith("'")) return directory.slice(1, -1)
-  if (directory.startsWith('"') && directory.endsWith('"')) return directory.slice(1, -1)
+  if (directory.startsWith("'") && directory.endsWith("'")) {
+    return directory.slice(1, -1)
+  }
+
+  if (directory.startsWith('"') && directory.endsWith('"')) {
+    return directory.slice(1, -1)
+  }
+
   return /^[^\s;&|]+$/.test(directory) ? directory : undefined
 }
 
 function commandDirectory(command: string, cwd: string): string | undefined {
   const directory = command.match(/^\s*cd(?:\s+--)?\s+((?:'[^']*'|"[^"]*"|[^\s;&|]+))\s*&&/)?.[1]
   const parsed = directory && unquote(directory)
-  if (!parsed) return undefined
+  if (!parsed) {
+    return undefined
+  }
+
   const expanded = parsed === "~" || parsed.startsWith("~/") ? `${homedir()}${parsed.slice(1)}` : parsed
   return resolve(cwd, expanded)
 }
@@ -107,7 +114,10 @@ function commandArguments(command: string): string[] {
 
 function commandOnPath(command: string, environment: MergeEditorEnvironment): boolean {
   const [executable] = commandArguments(command)
-  if (!executable) return false
+  if (!executable) {
+    return false
+  }
+
   if (executable.includes("/") || executable.includes("\\")) {
     try {
       accessSync(executable, constants.X_OK)
@@ -116,6 +126,7 @@ function commandOnPath(command: string, environment: MergeEditorEnvironment): bo
       return false
     }
   }
+
   return (environment.PATH ?? process.env.PATH ?? "").split(delimiter).some((directory) => {
     try {
       accessSync(join(directory, executable), constants.X_OK)
@@ -132,11 +143,13 @@ export function getMergeEditorCommand(
   git: GitRunner = runGit,
 ): string | undefined {
   const configured = environment.MERGE_EDITOR?.trim()
-  if (configured) return configured
+  if (configured) {
+    return configured
+  }
+
   const mergeTool = git(directory, ["config", "--get", "merge.tool"])
   return mergeTool && commandOnPath(mergeTool, environment) ? mergeTool : undefined
 }
-
 
 function workspaceFile(directory: string): string | undefined {
   try {
@@ -149,8 +162,6 @@ function workspaceFile(directory: string): string | undefined {
   }
 }
 
-
-
 export function openInEditor(
   editorCommand: string,
   directory: string,
@@ -158,11 +169,22 @@ export function openInEditor(
   workspaceDirectory = directory,
 ): void {
   const [editor, ...args] = commandArguments(editorCommand)
-  if (!editor) throw new Error("Editor command is empty.")
+  if (!editor) {
+    throw new Error("Editor command is empty.")
+  }
+
   const codeEditor = /(?:^|[/\\])(?:code(?:-insiders)?|codium|cursor|windsurf|devin(?:-desktop)?)(?:\.exe)?$/i.test(editor)
   const target = codeEditor ? workspaceFile(workspaceDirectory) ?? directory : directory
-  const child = spawn(editor, [...args, ...(codeEditor ? ["--new-window"] : []), target], { detached: true, stdio: "ignore", windowsHide: true })
-  if (onError) child.once("error", onError)
+  const child = spawn(
+    editor,
+    [...args, ...(codeEditor ? ["--new-window"] : []), target],
+    { detached: true, stdio: "ignore", windowsHide: true },
+  )
+
+  if (onError) {
+    child.once("error", onError)
+  }
+
   child.unref()
 }
 
@@ -172,15 +194,28 @@ export function openInMergeEditor(
   onError?: (error: Error) => void,
 ): void {
   const [editor, ...args] = commandArguments(mergeEditorCommand)
-  if (!editor) throw new Error("Merge editor command is empty.")
-  const child = spawn(editor, [...args, directory], { detached: true, stdio: "ignore", windowsHide: true })
-  if (onError) child.once("error", onError)
+  if (!editor) {
+    throw new Error("Merge editor command is empty.")
+  }
+
+  const child = spawn(editor, [...args, directory], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+  })
+
+  if (onError) {
+    child.once("error", onError)
+  }
+
   child.unref()
 }
 
 export function inspectWorktree(directory: string, git: GitRunner = runGit): WorktreeStatus {
   const worktree = git(directory, ["rev-parse", "--show-toplevel"])
-  if (!worktree) return { directory, linked: false }
+  if (!worktree) {
+    return { directory, linked: false }
+  }
 
   const gitDir = git(directory, ["rev-parse", "--absolute-git-dir"])
   const commonDir = git(directory, ["rev-parse", "--path-format=absolute", "--git-common-dir"])
@@ -209,7 +244,10 @@ function savedDirectory(entry: unknown): string | undefined {
     !entry.data ||
     typeof entry.data !== "object" ||
     !("directory" in entry.data)
-  ) return undefined
+  ) {
+    return undefined
+  }
+
   const { directory } = entry.data
   return typeof directory === "string" && directory.trim() ? directory : undefined
 }
@@ -217,18 +255,23 @@ function savedDirectory(entry: unknown): string | undefined {
 function latestSavedDirectory(entries: readonly unknown[]): string | undefined {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const directory = savedDirectory(entries[index])
-    if (directory) return directory
+    if (directory) {
+      return directory
+    }
   }
+
   return undefined
 }
-
 
 export function formatStatus(
   status: WorktreeStatus,
   sessionDirectory = status.directory,
   environment: StatusEnvironment = {},
 ): string {
-  if (status.worktree && !status.linked && canonicalPath(status.worktree) === canonicalPath(sessionDirectory)) return ""
+  if (status.worktree && !status.linked && canonicalPath(status.worktree) === canonicalPath(sessionDirectory)) {
+    return ""
+  }
+
   const home = homedir()
   const directory = status.directory === home
     ? "~"
@@ -237,6 +280,7 @@ export function formatStatus(
     ? `\u001B]8;;${pathToFileURL(resolve(status.directory)).href}\u001B\\${directory}\u001B]8;;\u001B\\`
     : directory
   const details = [`cwd: ${directoryText}`]
+
   if (status.worktree && canonicalPath(status.directory) !== canonicalPath(status.worktree)) {
     const worktree = status.worktree === home
       ? "~"
@@ -248,14 +292,19 @@ export function formatStatus(
   } else if (status.worktree) {
     details[0] = `cwd/wt: ${directoryText}`
   }
-  if (status.branch) details.push(`branch: ${status.branch}`)
-  else if (status.worktree) details.push("branch: detached")
-  else details.push("not a Git worktree")
+
+  if (status.branch) {
+    details.push(`branch: ${status.branch}`)
+  } else if (status.worktree) {
+    details.push("branch: detached")
+  } else {
+    details.push("not a Git worktree")
+  }
+
   return details.join(" · ")
 }
 
-
-export default function worktreeStatusExtension(pi: ExtensionApi): void {
+export function worktreeStatusExtension(pi: ExtensionApi): void {
   let activeDirectory: string | undefined
   let activeText: string | undefined
   let activeContext: ActiveWorktreeContext | undefined
@@ -275,11 +324,18 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
 
   const update = (ctx: ExtensionContext, directory: string, status = inspectWorktree(directory)) => {
     const parentSession = ctx.sessionManager.getHeader()?.parentSession
-    if (typeof parentSession === "string" && parentSession.length > 0) return
+    if (typeof parentSession === "string" && parentSession.length > 0) {
+      return
+    }
+
     activeDirectory = directory
     activeContext = Object.freeze({ ...status })
+
     const text = formatStatus(status, ctx.cwd, process.env)
-    if (text === activeText) return
+    if (text === activeText) {
+      return
+    }
+
     activeText = text
     ctx.ui.setStatus(STATUS_KEY, text ? ctx.ui.theme.fg("text", text) : undefined)
   }
@@ -292,6 +348,7 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
       ctx.ui.setStatus(STATUS_KEY, undefined)
       return
     }
+
     const restoredDirectory = latestSavedDirectory(ctx.sessionManager.getEntries?.() ?? [])
     if (restoredDirectory) {
       const status = existsSync(restoredDirectory) && inspectWorktree(restoredDirectory)
@@ -299,13 +356,17 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
         update(ctx, restoredDirectory, status)
         return
       }
+
       ctx.ui.notify("Saved worktree is unavailable; using the session directory.", "warning")
     }
+
     update(ctx, sessionDirectory)
   }
 
   const ensureSession = (ctx: ExtensionContext) => {
-    if (sessionDirectory !== (ctx.cwd.trim() || undefined)) reset(ctx)
+    if (sessionDirectory !== (ctx.cwd.trim() || undefined)) {
+      reset(ctx)
+    }
   }
 
   pi.registerCommand("open-in-editor", {
@@ -316,6 +377,7 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
         ctx.ui.notify("No editor configured. Set $VISUAL or $EDITOR, then run /open-in-editor.", "error")
         return
       }
+
       const directory = activeDirectory ?? ctx.cwd
       const worktree = inspectWorktree(directory).worktree ?? directory
       try {
@@ -337,6 +399,7 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
         ctx.ui.notify("No merge editor configured. Set $MERGE_EDITOR or Git merge.tool, then run /open-in-merge-editor.", "error")
         return
       }
+
       const worktree = inspectWorktree(directory).worktree ?? directory
       try {
         openInMergeEditor(editor, worktree, () => {
@@ -359,14 +422,20 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
       (typeof event.input.cwd === "string" && event.input.cwd.trim()) ||
       !activeDirectory ||
       activeDirectory === ctx.cwd
-    ) return
+    ) {
+      return
+    }
+
     redirectedCalls.set(event.toolCallId, { input: event.input, directory: activeDirectory })
     return { input: { ...event.input, cwd: activeDirectory } }
   })
   pi.on("tool_result", (event, ctx) => {
     ensureSession(ctx)
     const redirected = event.toolCallId ? redirectedCalls.get(event.toolCallId) : undefined
-    if (event.toolCallId) redirectedCalls.delete(event.toolCallId)
+    if (event.toolCallId) {
+      redirectedCalls.delete(event.toolCallId)
+    }
+
     if (
       event.toolName !== "bash" ||
       !event.input ||
@@ -374,12 +443,21 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
       event.details?.async?.state === "running" ||
       event.details?.async?.state === "failed" ||
       (event.details?.exitCode !== undefined && event.details.exitCode !== 0)
-    ) return
+    ) {
+      return
+    }
+
     const selectedDirectory = toolDirectory(redirected?.input ?? event.input, redirected?.directory ?? ctx.cwd)
     const directory = selectedDirectory ?? redirected?.directory ?? ctx.cwd
-    if (!directory) return
+    if (!directory) {
+      return
+    }
+
     update(ctx, directory)
-    if (selectedDirectory) ctx.sessionManager.appendCustomEntry?.(STATUS_KEY, { directory: selectedDirectory })
+
+    if (selectedDirectory) {
+      ctx.sessionManager.appendCustomEntry?.(STATUS_KEY, { directory: selectedDirectory })
+    }
   })
   pi.on("session_shutdown", (_event, ctx) => {
     sessionDirectory = undefined
@@ -388,3 +466,5 @@ export default function worktreeStatusExtension(pi: ExtensionApi): void {
     redirectedCalls.clear()
   })
 }
+
+export default worktreeStatusExtension

@@ -2,6 +2,8 @@
 
 The package is a single OMP extension, not a shell or worktree manager. Both package extension declarations load `index.ts`; `.omp-plugin/marketplace.json` supplies discovery metadata. There is no build step or generated runtime artifact.
 
+`worktreeStatusExtension` is the named initializer. The default export references that same function because OMP loads the extension through its default entrypoint; keep both exports aligned when changing initialization.
+
 ## Directory selection and Git inspection
 
 `toolDirectory` resolves an explicit Bash `cwd` first, then a reliable leading `cd … &&`. It does not interpret arbitrary shell scripts or persist the shell's internal directory changes. Home-relative and relative paths are resolved before Git inspection.
