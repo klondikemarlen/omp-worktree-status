@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from "node:child_process"
 import { accessSync, constants, existsSync, readdirSync, realpathSync } from "node:fs"
 import { homedir } from "node:os"
-import { delimiter, isAbsolute, join, relative, resolve } from "node:path"
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 
 const STATUS_KEY = "worktree-status"
@@ -232,6 +232,25 @@ function canonicalPath(path: string): string {
   }
 }
 
+function isResumableWorktree(status: WorktreeStatus): boolean {
+  if (!status.worktree) {
+    return false
+  }
+
+  if (!status.linked || status.branch || basename(status.worktree) !== "checkout") {
+    return true
+  }
+
+  const handoffDirectory = dirname(status.worktree)
+  if (!existsSync(join(handoffDirectory, "handoff.json"))) {
+    return true
+  }
+
+  // Verifier pins its recovered checkout in this repository for the life of the handoff.
+  const deliveryRef = `refs/omp-verifier/deliveries/${basename(handoffDirectory)}`
+  return !runGit(status.worktree, ["show-ref", "--verify", "--hash", deliveryRef])
+}
+
 function savedDirectory(entry: unknown): string | undefined {
   if (
     !entry ||
@@ -453,10 +472,13 @@ export function worktreeStatusExtension(pi: ExtensionApi): void {
       return
     }
 
-    update(ctx, directory)
+    const status = inspectWorktree(directory)
+    update(ctx, directory, status)
 
-    if (selectedDirectory) {
-      ctx.sessionManager.appendCustomEntry?.(STATUS_KEY, { directory: selectedDirectory })
+    if (selectedDirectory && isResumableWorktree(status)) {
+      ctx.sessionManager.appendCustomEntry?.(STATUS_KEY, {
+        directory: selectedDirectory,
+      })
     }
   })
   pi.on("session_shutdown", (_event, ctx) => {
