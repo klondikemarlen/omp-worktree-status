@@ -7,11 +7,13 @@ Use the shared feature workflow for issue, meaningful issue-linked branch, draft
 ## Verify the feature
 
 ```sh
+bun install --frozen-lockfile
+bun run lint
 bun run release:check
 git diff --check origin/main...HEAD
 ```
 
-`release:check` runs the same Bun suite as `bun test`. No formatter or separate typecheck script is configured. Review the touched code for local style and keep whitespace changes scoped.
+`bun run lint` checks the plugin and tests with the repository's Oxlint correctness rules, without modifying files. Pass paths for focused checks. `release:check` runs the same Bun suite as `bun test`. No formatter or separate typecheck script is configured.
 
 For status changes, complete the [terminal scenarios](/docs/qa-scenarios/status.md). Record exact observed results and any unavailable terminal-specific checks in the PR body. Keep transient execution logs and self-improvement finding classifications in the issue or PR, not in this knowledge base.
 
