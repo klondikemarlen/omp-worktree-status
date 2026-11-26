@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.11
+
+- Resume in the last selected worktree after using a non-Git scratch directory or a recovered Verifier checkout. Both still show their live status while in use.
+
 ## 0.4.10
 
 - Export a named extension initializer while preserving OMP's default entrypoint.
