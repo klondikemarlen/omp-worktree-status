@@ -17,7 +17,8 @@ The default extension owns the active directory, last displayed text, immutable 
 - Session start and switch initialize from the session directory, or the newest usable saved directory. An unavailable saved directory produces a warning and leaves launch-directory behavior intact.
 - Child and forked sessions do not restore or publish parent status.
 - A `tool_call` for Bash without explicit `cwd` is revised to use the active directory when it differs from the session directory. The pending call preserves the original input so a leading relative `cd` resolves from the directory where the command actually ran.
-- Successful Bash results refresh Git metadata even when the directory is unchanged. Errors, nonzero exits, and running or failed async results do not replace active context. Explicit directory choices are appended as custom session entries.
+- Successful Bash results refresh Git metadata even when the directory is unchanged. Errors, nonzero exits, and running or failed async results do not replace active context.
+- Only explicitly selected, resumable Git directories are appended to session history. A non-Git directory is displayable but not restorable. A Verifier-recovered worktree is identified by its detached linked `checkout` root next to `handoff.json` and the repository's matching `refs/omp-verifier/deliveries/<handoff-id>` pin. Neither a temporary path nor a detached HEAD alone establishes ownership.
 - Shutdown clears the active snapshot, status entry, and pending calls.
 
 The exported getter and global symbol expose the same frozen snapshot to cooperating extensions. This is display context, not authority for another tool's execution directory. Keep this public boundary intact when changing rendering.

@@ -24,6 +24,7 @@ For a color-only change, run the existing suite rather than adding duplicate dir
 
 - A failed Bash command must not replace the last successful directory.
 - A resumed session restores a saved valid worktree; a missing saved directory warns and falls back.
+- Select a linked worktree, then use a non-Git QA directory or a recovered Verifier checkout for a successful Bash call. The active status should follow the call. After temporary checkout cleanup and session restart, the status and the first implicit `pwd` should point to the selected linked worktree without an unavailable-worktree warning.
 - An implicit Bash call after restoration executes in the restored directory; explicit `cwd` remains authoritative.
 - Returning to the primary session worktree hides redundant status. Selecting a linked worktree displays it again.
 

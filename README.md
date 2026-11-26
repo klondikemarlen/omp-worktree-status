@@ -44,7 +44,9 @@ OMP's built-in footer remains the session-start directory and branch. Extensions
 
 ## Resuming sessions
 
-The plugin stores the last successful Bash directory selected with an explicit `cwd` or a reliable leading `cd … &&` in OMP's session history. On resume, it immediately restores that directory's worktree status when it still exists and is a Git worktree. It uses OMP's supported `tool_call` input revision to run later Bash calls that omit `cwd` in the restored directory. An explicit `cwd` remains authoritative, and a leading `cd` runs relative to the restored directory. Missing or invalid saved directories leave the launch-directory behavior unchanged and show a warning. Child and forked sessions do not reuse their parent's saved status.
+The plugin remembers the last Git worktree directory selected with an explicit Bash `cwd` or a reliable leading `cd … &&`. A non-Git scratch directory or a recovered OMP Verifier checkout still becomes active for the current session, but does not replace the directory saved for resume. Ordinary linked worktrees, including detached ones, can be saved.
+
+On resume, the status and subsequent Bash calls without an explicit `cwd` use the saved directory. An explicit `cwd` remains authoritative, and a leading `cd` runs relative to the restored directory. If the saved worktree is missing or invalid, OMP warns and uses the launch directory. Child and forked sessions do not reuse their parent's saved status.
 
 ## Extension context
 
